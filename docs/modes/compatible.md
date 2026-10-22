@@ -1,48 +1,50 @@
 # QHturbo Compatible
 
-**Mục tiêu:** chạy PHP chuẩn, PHP-FPM, Composer và ứng dụng cũ **không phải sửa code**. Mọi thứ hoạt động như một bản PHP-FPM thông thường, chỉ có cấu hình tốt hơn và đi kèm công cụ kiểm tra.
+**English** · [Tiếng Việt](compatible.vi.md)
+
+**Goal:** run standard PHP, PHP-FPM, Composer and legacy applications **without code changes**. Everything works like an ordinary PHP-FPM install, just with a better configuration and bundled diagnostic tools.
 
 | | |
 |---|---|
-| Phiên bản PHP | 7.4, 8.0, 8.1, 8.2, 8.3, 8.4, 8.5 |
-| Mô hình chạy | nginx/Apache → PHP-FPM, mỗi request khởi động lại ứng dụng (như PHP truyền thống) |
-| Yêu cầu với ứng dụng | Không có |
-| Khi nào dùng | Mặc định cho mọi site: WordPress, Laravel, code cũ, site trên aaPanel |
+| PHP versions | 7.4, 8.0, 8.1, 8.2, 8.3, 8.4, 8.5 |
+| Execution model | nginx/Apache → PHP-FPM, the application boots again on every request (like traditional PHP) |
+| Requirements for the application | None |
+| When to use | Default for every site: WordPress, Laravel, legacy code, sites on aaPanel |
 
-## Đã kiểm chứng (22/10/2026, build `full`)
+## Verified (2026-10-22, `full` build)
 
-| Kiểm tra | PHP 8.5.12 | PHP 7.4.33 |
+| Check | PHP 8.5.12 | PHP 7.4.33 |
 |---|---|---|
-| Build `full` (FPM + 51 module: openssl, curl, intl, gd, mysqli, pdo_mysql, zip, sodium, soap...) | OK | OK (OpenSSL 1.1.1w riêng) |
-| `scripts/install.sh` vào `/opt/qhturbo/<nhánh>`, `php-fpm -t` | OK | OK |
-| nginx → FPM qua socket riêng, chạy song song hai phiên bản | `php85-fpm.sock` | `php74-fpm.sock` |
-| **Cùng một ứng dụng kiểu cũ**: `session_start`, `$_GET`, `header()`, `setcookie`, `$_FILES`, PDO SQLite, `include` | OK | OK, kết quả giống hệt |
+| `full` build (FPM + 51 modules: openssl, curl, intl, gd, mysqli, pdo_mysql, zip, sodium, soap...) | OK | OK (separate OpenSSL 1.1.1w) |
+| `scripts/install.sh` into `/opt/qhturbo/<branch>`, `php-fpm -t` | OK | OK |
+| nginx → FPM over a dedicated socket, both versions running side by side | `php85-fpm.sock` | `php74-fpm.sock` |
+| **The same legacy-style application**: `session_start`, `$_GET`, `header()`, `setcookie`, `$_FILES`, PDO SQLite, `include` | OK | OK, identical output |
 | intl (`1.234.567 ₫`), gd, openssl, sodium, mbstring | OK | OK |
-| **Composer 2.8** chạy trên PHP QHturbo | `create-project laravel/laravel` (Laravel 13.38, hơn 100 package) | `require monolog guzzle`: tự chọn phiên bản tương thích 7.4 |
-| HTTPS có xác thực chứng chỉ | OK | OK (Guzzle → packagist, 200) |
-| Laravel qua nginx → FPM / `php artisan test` | HTTP 200 / 2/2 pass | — (Laravel 13 cần PHP 8.3+) |
-| Bộ PHPT chính thức (bản minimal) | 13.568 pass / 0 fail | 8.997 pass, 46 fail do môi trường |
+| **Composer 2.8** running on QHturbo PHP | `create-project laravel/laravel` (Laravel 13.38, more than 100 packages) | `require monolog guzzle`: automatically picks 7.4-compatible versions |
+| HTTPS with certificate verification | OK | OK (Guzzle → packagist, 200) |
+| Laravel via nginx → FPM / `php artisan test` | HTTP 200 / 2/2 pass | — (Laravel 13 requires PHP 8.3+) |
+| Official PHPT suite (minimal build) | 13,568 pass / 0 fail | 8,997 pass, 46 fail due to the environment |
 
-## Có gì khác so với PHP-FPM gốc
+## What differs from stock PHP-FPM
 
-Chỉ cấu hình, không đổi ngữ nghĩa PHP (`config/modes/compatible/`):
+Configuration only, no change to PHP semantics (`config/modes/compatible/`):
 
-- **OPcache bật sẵn** với kích thước hợp lý cho Composer/framework: 256M bộ nhớ, 50.000 file, 32M interned strings.
-- **Vẫn giữ `validate_timestamps=1`** (kiểm tra mỗi 2 giây): sửa file qua FTP, trình quản lý file của aaPanel hay WordPress tự cập nhật đều có hiệu lực như cũ. Đây là lựa chọn "tương thích trước, tốc độ sau".
-- **JIT tắt** (chỉ bật khi đã đo bằng ứng dụng thật).
-- `realpath_cache` 4M/600s giúp giảm `stat()` cho autoload của Composer.
-- Pool FPM: `pm.max_requests=1000` (tái tạo tiến trình con định kỳ để chặn rò rỉ của code/extension cũ), có slowlog, trang status/ping.
-- **Cài song song, không ghi đè:** prefix `/opt/qhturbo/<nhánh>`, socket và service riêng. `install.sh` từ chối cài vào `/usr`, `/etc`, `/www/server/php`.
+- **OPcache enabled by default** with sizes suited to Composer/frameworks: 256M memory, 50,000 files, 32M interned strings.
+- **`validate_timestamps=1` is kept** (checked every 2 seconds): edits via FTP, the aaPanel file manager or WordPress auto-updates take effect as before. This is the "compatibility first, speed second" choice.
+- **JIT off** (only enable it after measuring with a real application).
+- `realpath_cache` 4M/600s reduces `stat()` calls for Composer autoloading.
+- FPM pool: `pm.max_requests=1000` (periodically recycles child processes to contain leaks from legacy code/extensions), with slowlog and status/ping pages.
+- **Installed side by side, never overwriting:** prefix `/opt/qhturbo/<branch>`, dedicated socket and service. `install.sh` refuses to install into `/usr`, `/etc`, `/www/server/php`.
 
-## Cài đặt
+## Installation
 
 ```bash
-export QHT_LAB=~/QHTurbo-lab QHT_PHP=8.5      # hoặc 7.4 ... 8.4
+export QHT_LAB=~/QHTurbo-lab QHT_PHP=8.5      # or 7.4 ... 8.4
 sudo apt install -y build-essential autoconf bison re2c pkg-config \
   libxml2-dev libssl-dev libsqlite3-dev zlib1g-dev libcurl4-openssl-dev libzip-dev \
   libonig-dev libicu-dev libsodium-dev libpng-dev libjpeg-dev libfreetype-dev libgmp-dev libreadline-dev
 scripts/bootstrap.sh
-[ "$QHT_PHP" = 7.4 ] || [ "$QHT_PHP" = 8.0 ] && scripts/deps-openssl11.sh   # chỉ 7.4/8.0
+[ "$QHT_PHP" = 7.4 ] || [ "$QHT_PHP" = 8.0 ] && scripts/deps-openssl11.sh   # 7.4/8.0 only
 QHT_PROFILE=full scripts/build.sh baseline
 sudo -E scripts/install.sh                     # -> /opt/qhturbo/8.5
 sudo cp /opt/qhturbo/8.5/share/qhturbo/systemd/qhturbo-php85-fpm.service /etc/systemd/system/
@@ -50,14 +52,14 @@ sudo systemctl daemon-reload && sudo systemctl enable --now qhturbo-php85-fpm
 /opt/qhturbo/8.5/bin/php /opt/qhturbo/8.5/share/qhturbo/qht-doctor.php
 ```
 
-Đóng gói để mang sang máy chủ khác: `scripts/package.sh` (cùng bản distro với máy build, vì binary liên kết thư viện hệ thống như libcurl, ICU).
+Packaging to move to another server: `scripts/package.sh` (same distro release as the build machine, since the binary links against system libraries such as libcurl and ICU).
 
-### Chuyển một site aaPanel sang QHturbo (có đường lui)
+### Moving an aaPanel site to QHturbo (with a way back)
 
-Cách nhanh và an toàn nhất: dùng `scripts/aapanel.sh` (tự backup, tự rollback). Xem [docs/aapanel.md](../aapanel.md). Các bước thủ công bên dưới để tham khảo:
+The fastest and safest way: use `scripts/aapanel.sh` (automatic backup, automatic rollback). See [docs/aapanel.md](../aapanel.md). The manual steps below are for reference:
 
-1. Backup vhost: `cp /www/server/panel/vhost/nginx/site.conf{,.bak}`.
-2. Trong vhost, thay `include enable-php-85.conf;` bằng:
+1. Back up the vhost: `cp /www/server/panel/vhost/nginx/site.conf{,.bak}`.
+2. In the vhost, replace `include enable-php-85.conf;` with:
    ```nginx
    location ~ [^/]\.php(/|$) {
        try_files $uri =404;
@@ -66,16 +68,16 @@ Cách nhanh và an toàn nhất: dùng `scripts/aapanel.sh` (tự backup, tự r
        include fastcgi.conf;
    }
    ```
-   aaPanel chạy nginx bằng user `www`, nên khi cài dùng `--user=www --group=www`.
-3. `nginx -t && nginx -s reload`, rồi theo dõi log và tỉ lệ 5xx.
-4. **Rollback:** khôi phục file `.bak`, rồi `nginx -s reload`. PHP gốc của aaPanel vẫn chạy nguyên vẹn.
+   aaPanel runs nginx as the `www` user, so install with `--user=www --group=www`.
+3. `nginx -t && nginx -s reload`, then watch the logs and the 5xx rate.
+4. **Rollback:** restore the `.bak` file, then `nginx -s reload`. aaPanel's own PHP keeps running untouched.
 
-## PHP 7.4 / 8.0 và OpenSSL
+## PHP 7.4 / 8.0 and OpenSSL
 
-PHP < 8.1 không biên dịch được với OpenSSL 3 (Ubuntu 22.04+). `scripts/deps-openssl11.sh` build OpenSSL 1.1.1w vào `$QHT_LAB/deps/openssl-1.1`, và PHP liên kết tới đó qua rpath. OpenSSL hệ thống không bị đụng tới. **OpenSSL 1.1.1 cũng đã hết hạn hỗ trợ**: chỉ dùng cho ứng dụng cũ trong lúc chuẩn bị nâng cấp.
+PHP < 8.1 does not compile against OpenSSL 3 (Ubuntu 22.04+). `scripts/deps-openssl11.sh` builds OpenSSL 1.1.1w into `$QHT_LAB/deps/openssl-1.1`, and PHP links to it via rpath. The system OpenSSL is not touched. **OpenSSL 1.1.1 is also end-of-life**: use it only for legacy applications while preparing to upgrade.
 
-## Tinh chỉnh
+## Tuning
 
-- `scripts/fpm-tune.py`: tính `pm.max_children` từ RAM và RSS thực tế của worker FPM.
-- `qht-doctor.php`: kiểm tra OPcache, Xdebug, realpath cache, extension, phiên bản EOL.
-- Khi deploy theo kiểu nguyên khối (symlink + reload FPM): có thể đặt `opcache.validate_timestamps=0` để nhanh thêm vài %. Phép đo cho thấy mức lợi này nhỏ (`results/web/`).
+- `scripts/fpm-tune.py`: computes `pm.max_children` from RAM and the actual RSS of FPM workers.
+- `qht-doctor.php`: checks OPcache, Xdebug, realpath cache, extensions, EOL versions.
+- For atomic deploys (symlink + FPM reload): you can set `opcache.validate_timestamps=0` to gain a few more percent. Measurements show this gain is small (`results/web/`).

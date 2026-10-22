@@ -1,101 +1,103 @@
-# Cài thử QHturbo trên aaPanel
+# Trying QHturbo on aaPanel
 
-Hướng dẫn chạy thử **QHturbo Compatible** trên máy chủ aaPanel, **từng site một** và luôn có đường lui. PHP do aaPanel cài (`/www/server/php/...`) **không bị động tới**.
+**English** · [Tiếng Việt](aapanel.vi.md)
 
-**Tóm tắt (5 lệnh):**
+A guide to trying **QHturbo Compatible** on an aaPanel server, **one site at a time** and always with a way back. The PHP installed by aaPanel (`/www/server/php/...`) **is not touched**.
+
+**Summary (5 commands):**
 
 ```bash
 git clone https://github.com/qhsvn/QHTurbo.git /opt/qhturbo-src && cd /opt/qhturbo-src
-sudo scripts/aapanel.sh check   --php=8.5                 # kiểm tra máy chủ, không thay đổi gì
-sudo scripts/aapanel.sh install --php=8.5                 # build + cài + chạy PHP-FPM riêng (10-40 phút)
-sudo scripts/aapanel.sh enable  test.example.com --php=8.5   # chuyển 1 site; lỗi thì tự quay lại
-sudo scripts/aapanel.sh disable test.example.com          # quay lại PHP của aaPanel
+sudo scripts/aapanel.sh check   --php=8.5                 # check the server, changes nothing
+sudo scripts/aapanel.sh install --php=8.5                 # build + install + run a separate PHP-FPM (10-40 minutes)
+sudo scripts/aapanel.sh enable  test.example.com --php=8.5   # switch 1 site; rolls back automatically on error
+sudo scripts/aapanel.sh disable test.example.com          # go back to aaPanel's PHP
 ```
 
 ---
 
-## 0. Chuẩn bị
+## 0. Preparation
 
-| Yêu cầu | Ghi chú |
+| Requirement | Notes |
 |---|---|
-| aaPanel dùng **Nginx** | Script chưa hỗ trợ Apache/OpenLiteSpeed |
-| Ubuntu 20.04 / 22.04 / 24.04, Debian 11 / 12 | AlmaLinux/Rocky: script có nhánh `dnf` nhưng **chưa được kiểm thử** |
-| Quyền root qua SSH | |
-| RAM ≥ 2 GB, hoặc thêm swap | Biên dịch PHP (intl, Zend VM) tốn RAM |
-| ≥ 4 GB ổ cứng trống | Mã nguồn và bản build nằm trong `/opt/qhturbo-lab` |
+| aaPanel using **Nginx** | The script does not support Apache/OpenLiteSpeed yet |
+| Ubuntu 20.04 / 22.04 / 24.04, Debian 11 / 12 | AlmaLinux/Rocky: the script has a `dnf` branch but it is **not tested yet** |
+| Root access over SSH | |
+| RAM ≥ 2 GB, or add swap | Compiling PHP (intl, Zend VM) uses a lot of RAM |
+| ≥ 4 GB free disk space | Source code and builds live in `/opt/qhturbo-lab` |
 
-**Nên làm trước:**
+**Do this first:**
 
-1. **Snapshot/backup VPS** (tại nhà cung cấp VPS hoặc bằng aaPanel Backup).
-2. Thử trên **site phụ** trước: tạo một site mới trong aaPanel (ví dụ `test.example.com`), hoặc nhân bản site thật sang subdomain.
-3. VPS ít RAM thì thêm swap 2 GB:
+1. **Snapshot/back up the VPS** (at your VPS provider or with aaPanel Backup).
+2. Try it on a **secondary site** first: create a new site in aaPanel (for example `test.example.com`), or clone the real site to a subdomain.
+3. If the VPS is low on RAM, add 2 GB of swap:
    ```bash
    sudo fallocate -l 2G /swapfile && sudo chmod 600 /swapfile && sudo mkswap /swapfile && sudo swapon /swapfile
    ```
 
-**Chọn phiên bản:** dùng **cùng phiên bản** với site đang chạy trong aaPanel (site dùng PHP 8.2 thì `--php=8.2`) để so sánh công bằng và ít rủi ro nhất. Các phiên bản hỗ trợ: 7.4, 8.0, 8.1, 8.2, 8.3, 8.4, 8.5. Dự án đã kiểm thử đầy đủ bản `full` cho **7.4 và 8.5**; các phiên bản khác dùng cùng script nhưng chưa chạy thử.
+**Choosing a version:** use the **same version** as the site currently running in aaPanel (if the site uses PHP 8.2, use `--php=8.2`) for a fair comparison and the lowest risk. Supported versions: 7.4, 8.0, 8.1, 8.2, 8.3, 8.4, 8.5. The project has fully tested the `full` build for **7.4 and 8.5**; the other versions use the same script but have not been tried.
 
-## 1. Tải QHturbo và kiểm tra máy chủ
+## 1. Download QHturbo and check the server
 
 ```bash
-apt install -y git          # aaPanel thường đã có
+apt install -y git          # aaPanel usually has it already
 git clone https://github.com/qhsvn/QHTurbo.git /opt/qhturbo-src
 cd /opt/qhturbo-src
 sudo scripts/aapanel.sh check --php=8.5
 ```
 
-`check` **không thay đổi gì**. Lệnh này in ra:
-- aaPanel và nginx có được tìm thấy không, cùng RAM và ổ cứng (có cảnh báo nếu không đủ để build).
-- Các phiên bản PHP của aaPanel và **site nào đang dùng PHP nào** (dùng tên này cho bước `enable`).
-- Sau khi cài: **extension nào có trong PHP aaPanel mà QHturbo chưa có** (redis, imagick…).
+`check` **changes nothing**. It prints:
+- Whether aaPanel and nginx were found, plus RAM and disk space (with a warning if they are not enough to build).
+- aaPanel's PHP versions and **which site uses which PHP** (use this name for the `enable` step).
+- After installation: **which extensions aaPanel's PHP has that QHturbo does not have yet** (redis, imagick…).
 
-## 2. Cài đặt (10–40 phút)
+## 2. Installation (10–40 minutes)
 
-Chạy trong `screen` để mất kết nối SSH cũng không dừng build:
+Run it inside `screen` so a dropped SSH connection does not stop the build:
 
 ```bash
 screen -S qhturbo
 sudo scripts/aapanel.sh install --php=8.5
-# Ctrl+A rồi D để thoát; quay lại bằng: screen -r qhturbo
+# Ctrl+A then D to detach; reattach with: screen -r qhturbo
 ```
 
-Script sẽ:
-1. Cài các gói cần để build (apt/dnf).
-2. Tải đúng tag PHP chính thức và kiểm tra commit. Với 7.4/8.0 thì build kèm OpenSSL 1.1.1 riêng.
-3. Build PHP + PHP-FPM với các extension thường dùng, rồi cài vào `/opt/qhturbo/8.5`.
-4. **Chép thiết lập từ php.ini của aaPanel** sang (`disable_functions`, `memory_limit`, `upload_max_filesize`, `post_max_size`, `max_execution_time`, `date.timezone`…), để site có cùng giới hạn và cùng mức bảo mật.
-5. Chạy PHP-FPM riêng: service `qhturbo-php85-fpm`, socket `/run/qhturbo/php85-fpm.sock`, user `www` (giống aaPanel).
-6. Tạo file `/www/server/nginx/conf/enable-php-qhturbo85.conf`, chép từ `enable-php-85.conf` của aaPanel và chỉ đổi socket.
-7. Chạy `qht-doctor` để kiểm tra cấu hình.
+The script will:
+1. Install the packages needed for the build (apt/dnf).
+2. Download the exact official PHP tag and verify the commit. For 7.4/8.0 it also builds a separate OpenSSL 1.1.1.
+3. Build PHP + PHP-FPM with commonly used extensions, then install into `/opt/qhturbo/8.5`.
+4. **Copy settings from aaPanel's php.ini** (`disable_functions`, `memory_limit`, `upload_max_filesize`, `post_max_size`, `max_execution_time`, `date.timezone`…), so the site has the same limits and the same security level.
+5. Run a separate PHP-FPM: service `qhturbo-php85-fpm`, socket `/run/qhturbo/php85-fpm.sock`, user `www` (same as aaPanel).
+6. Create the file `/www/server/nginx/conf/enable-php-qhturbo85.conf`, copied from aaPanel's `enable-php-85.conf` with only the socket changed.
+7. Run `qht-doctor` to check the configuration.
 
-Sau bước này **chưa có site nào đổi gì**.
+After this step **no site has changed yet**.
 
-## 3. Bổ sung extension còn thiếu
+## 3. Adding missing extensions
 
 ```bash
-sudo scripts/aapanel.sh check --php=8.5        # xem dòng "extensions in aaPanel PHP but not in QHturbo"
+sudo scripts/aapanel.sh check --php=8.5        # look at the "extensions in aaPanel PHP but not in QHturbo" line
 sudo scripts/install-ext.sh redis --php=8.5
-sudo scripts/install-ext.sh imagick --php=8.5  # cần trước: apt install -y libmagickwand-dev
+sudo scripts/install-ext.sh imagick --php=8.5  # requires first: apt install -y libmagickwand-dev
 ```
 
-`install-ext.sh` tải từ PECL; nếu PECL không truy cập được thì tải từ GitHub (bản ổn định mới nhất), rồi build, bật và reload FPM. Đã thử: redis 6.3.0 trên 8.5, apcu 5.1.28 trên 7.4.
+`install-ext.sh` downloads from PECL; if PECL is unreachable it downloads from GitHub (latest stable release), then builds, enables and reloads FPM. Tried: redis 6.3.0 on 8.5, apcu 5.1.28 on 7.4.
 
-## 4. Chuyển một site sang QHturbo
+## 4. Switching a site to QHturbo
 
 ```bash
 sudo scripts/aapanel.sh enable test.example.com --php=8.5
 ```
 
-Script làm như sau:
-1. Đo mã HTTP của site **trước** khi chuyển.
-2. Backup vhost (`/www/server/panel/vhost/nginx/test.example.com.conf.qhturbo-bak`).
-3. Đổi đúng **một dòng** `include enable-php-85.conf;` thành `include enable-php-qhturbo85.conf;`.
-4. `nginx -t`: lỗi thì khôi phục ngay.
-5. Reload nginx, đo lại mã HTTP. **Nếu site trả 5xx (mà trước đó không bị) thì tự quay về PHP aaPanel.**
+What the script does:
+1. Records the site's HTTP status code **before** switching.
+2. Backs up the vhost (`/www/server/panel/vhost/nginx/test.example.com.conf.qhturbo-bak`).
+3. Changes exactly **one line**, `include enable-php-85.conf;`, to `include enable-php-qhturbo85.conf;`.
+4. `nginx -t`: on error, restores immediately.
+5. Reloads nginx and checks the HTTP status code again. **If the site returns 5xx (and did not before), it automatically switches back to aaPanel's PHP.**
 
-Site có HTTPS hoặc không trả lời ở `http://127.0.0.1/` thì chỉ định URL để kiểm tra: `--url=https://test.example.com/`.
+If the site uses HTTPS or does not respond at `http://127.0.0.1/`, give the URL to check: `--url=https://test.example.com/`.
 
-**Kiểm tra site đang chạy PHP nào:** tạo file tạm rồi xoá ngay sau khi xem:
+**Checking which PHP a site is running:** create a temporary file and delete it right after looking:
 
 ```bash
 echo '<?php echo PHP_VERSION, " ", PHP_SAPI, " ", php_ini_loaded_file();' > /www/wwwroot/test.example.com/qht-check.php
@@ -103,66 +105,66 @@ curl -s https://test.example.com/qht-check.php      # 8.5.12 fpm-fcgi /opt/qhtur
 rm /www/wwwroot/test.example.com/qht-check.php
 ```
 
-Rồi tự kiểm tra các chức năng chính: đăng nhập, trang quản trị, upload, gửi form, thanh toán (môi trường test), cron.
+Then check the main features yourself: login, admin pages, uploads, form submission, payments (test environment), cron.
 
-**Theo dõi:** `tail -f /www/wwwlogs/test.example.com.error.log /var/log/qhturbo/php85-fpm.log /var/log/qhturbo/php85-slow.log`
+**Monitoring:** `tail -f /www/wwwlogs/test.example.com.error.log /var/log/qhturbo/php85-fpm.log /var/log/qhturbo/php85-slow.log`
 
-Tình trạng chung: `sudo scripts/aapanel.sh status`
+Overall status: `sudo scripts/aapanel.sh status`
 
-## 5. So sánh tốc độ
+## 5. Comparing speed
 
-Đo **cùng một trang**, trước và sau khi chuyển:
+Measure **the same page**, before and after switching:
 
 ```bash
-# Thời gian tới byte đầu tiên (TTFB), 20 lần
+# Time to first byte (TTFB), 20 times
 for i in $(seq 20); do curl -s -o /dev/null -w '%{time_starttransfer}\n' https://test.example.com/; done | sort -n | awk '{a[NR]=$1} END {print "median", a[int(NR/2)+1], "s"}'
-# Tải đồng thời (apt install apache2-utils)
+# Concurrent load (apt install apache2-utils)
 ab -n 500 -c 20 https://test.example.com/
 ```
 
-**Kỳ vọng thực tế:** chế độ Compatible là PHP-FPM chuẩn với cấu hình OPcache tốt.
-- PHP aaPanel của bạn **chưa bật OPcache** hoặc OPcache quá nhỏ: thường nhanh hơn rõ rệt.
-- PHP aaPanel đã có OPcache cấu hình tốt: tốc độ **gần như tương đương**.
-- Nâng phiên bản (7.4 → 8.x): nhanh hơn ở mức vừa phải, chủ yếu do code PHP chạy nhanh hơn.
-- Mức nhanh hơn 7–8× chỉ đạt được ở chế độ **Performance** (mục 8), vốn không dành cho WordPress.
+**Realistic expectations:** Compatible mode is standard PHP-FPM with a good OPcache configuration.
+- Your aaPanel PHP **does not have OPcache enabled** or OPcache is too small: usually noticeably faster.
+- Your aaPanel PHP already has a well-configured OPcache: speed is **about the same**.
+- Upgrading the version (7.4 → 8.x): moderately faster, mainly because PHP code runs faster.
+- A 7–8× speedup is only achievable in **Performance** mode (section 8), which is not meant for WordPress.
 
-Kết quả đo trên site thật rất quý, vì đó là phép đo mà dự án còn thiếu (ISSUE-003). Hãy gửi lại kết quả để cập nhật `logs/benchmarks.md`.
+Measurements on real sites are very valuable, because that is the measurement the project still lacks (ISSUE-003). Please send your results back so `logs/benchmarks.md` can be updated.
 
-## 6. Quay lại
+## 6. Going back
 
 ```bash
-sudo scripts/aapanel.sh disable test.example.com     # 1 site về PHP aaPanel (ngay lập tức)
-sudo scripts/aapanel.sh uninstall --php=8.5          # mọi site về PHP aaPanel, dừng và gỡ service
-sudo rm -rf /opt/qhturbo/8.5 /opt/qhturbo-lab        # (tuỳ chọn) xoá hẳn file
+sudo scripts/aapanel.sh disable test.example.com     # 1 site back to aaPanel PHP (immediately)
+sudo scripts/aapanel.sh uninstall --php=8.5          # all sites back to aaPanel PHP, stop and remove the service
+sudo rm -rf /opt/qhturbo/8.5 /opt/qhturbo-lab        # (optional) delete the files completely
 ```
 
-Nếu script không chạy được, cứu bằng tay: `cp /www/server/panel/vhost/nginx/<site>.conf.qhturbo-bak /www/server/panel/vhost/nginx/<site>.conf && /www/server/nginx/sbin/nginx -s reload`.
+If the script cannot run, recover by hand: `cp /www/server/panel/vhost/nginx/<site>.conf.qhturbo-bak /www/server/panel/vhost/nginx/<site>.conf && /www/server/nginx/sbin/nginx -s reload`.
 
-## 7. Lưu ý khi dùng cùng aaPanel
+## 7. Notes on using it alongside aaPanel
 
-| Tình huống | Điều xảy ra / cách xử lý |
+| Situation | What happens / how to handle it |
 |---|---|
-| Đổi "PHP version" của site trong giao diện aaPanel | aaPanel ghi lại dòng `include`, nên site **quay về PHP aaPanel** (hỏng theo hướng an toàn). Muốn dùng lại thì chạy `enable` lần nữa |
-| Sửa php.ini / giới hạn upload trong giao diện aaPanel | Không áp dụng cho QHturbo. Chạy `sudo scripts/aapanel.sh sync-ini --php=8.5`, hoặc sửa `/opt/qhturbo/8.5/etc/conf.d/` |
-| Cài extension trong giao diện aaPanel | Chỉ vào PHP aaPanel. Với QHturbo dùng `scripts/install-ext.sh` |
-| `open_basedir` (file `.user.ini` của site) | Vẫn có hiệu lực, như trên PHP aaPanel |
-| Session / đăng nhập | Cùng thư mục `/tmp` nên người dùng **không bị đăng xuất** khi chuyển (đã thấy trong test) |
-| Cron của aaPanel gọi `/www/server/php/85/bin/php` | Vẫn dùng PHP aaPanel. Muốn đổi thì sửa thành `/opt/qhturbo/8.5/bin/php` |
-| `disable_functions` | Được chép từ aaPanel. Chế độ Performance tự bỏ riêng các hàm `pcntl_*` (worker cần) |
-| Số tiến trình FPM | Mặc định 5 × số CPU. Tính theo RAM thật: `python3 /opt/qhturbo/8.5/share/qhturbo/fpm-tune.py` |
-| PHP 7.4 / 8.0 | Đã hết hạn hỗ trợ bảo mật, OpenSSL 1.1.1 cũng vậy. Chỉ dùng tạm trong lúc nâng cấp |
+| Changing the site's "PHP version" in the aaPanel UI | aaPanel rewrites the `include` line, so the site **goes back to aaPanel's PHP** (fails safe). To use QHturbo again, run `enable` again |
+| Editing php.ini / upload limits in the aaPanel UI | Does not apply to QHturbo. Run `sudo scripts/aapanel.sh sync-ini --php=8.5`, or edit `/opt/qhturbo/8.5/etc/conf.d/` |
+| Installing extensions in the aaPanel UI | Only goes into aaPanel's PHP. For QHturbo use `scripts/install-ext.sh` |
+| `open_basedir` (the site's `.user.ini` file) | Still in effect, as on aaPanel's PHP |
+| Sessions / login | Same `/tmp` directory, so users **are not logged out** when switching (observed in testing) |
+| aaPanel cron jobs calling `/www/server/php/85/bin/php` | Still use aaPanel's PHP. To change, edit them to `/opt/qhturbo/8.5/bin/php` |
+| `disable_functions` | Copied from aaPanel. Performance mode removes only the `pcntl_*` functions (needed by workers) |
+| Number of FPM processes | Default 5 × the number of CPUs. Compute from actual RAM: `python3 /opt/qhturbo/8.5/share/qhturbo/fpm-tune.py` |
+| PHP 7.4 / 8.0 | Out of security support, and so is OpenSSL 1.1.1. Use only temporarily while upgrading |
 
-## 8. (Nâng cao) Chế độ Performance trên aaPanel
+## 8. (Advanced) Performance mode on aaPanel
 
-Chỉ dành cho ứng dụng viết theo [quy tắc trạng thái](modes/performance.md) (không dành cho WordPress):
+Only for applications written to follow the [state rules](modes/performance.md) (not for WordPress):
 
-1. `sudo cp /opt/qhturbo/8.5/share/qhturbo/worker.env.example /etc/qhturbo/worker-myapp.env`, rồi sửa `QHT_APP`, `QHT_PORT`.
+1. `sudo cp /opt/qhturbo/8.5/share/qhturbo/worker.env.example /etc/qhturbo/worker-myapp.env`, then edit `QHT_APP`, `QHT_PORT`.
 2. `sudo cp /opt/qhturbo/8.5/share/qhturbo/systemd/qhturbo-php85-worker@.service /etc/systemd/system/ && sudo systemctl daemon-reload && sudo systemctl enable --now qhturbo-php85-worker@myapp`
-3. Trong aaPanel: **Website → site → Reverse proxy** trỏ tới `http://127.0.0.1:8080`.
-4. Deploy code mới: `sudo systemctl reload qhturbo-php85-worker@myapp` (thay worker lần lượt, không rơi request).
+3. In aaPanel: **Website → site → Reverse proxy** pointing to `http://127.0.0.1:8080`.
+4. Deploying new code: `sudo systemctl reload qhturbo-php85-worker@myapp` (replaces workers one by one, no dropped requests).
 
-## Đã kiểm thử những gì
+## What has been tested
 
-`tests/aapanel-sim.sh` dựng một **aaPanel mô phỏng**: cấu trúc `/www/server/...`, user `www`, `enable-php-XX.conf` và vhost theo kiểu aaPanel, nginx thật, một PHP-FPM đóng vai PHP của aaPanel. Kết quả **12/12**: check, sync-ini, enable (site chạy QHturbo với đúng `upload_max_filesize` và `disable_functions` của aaPanel), status, disable (vhost khôi phục giống hệt bản gốc), và tự rollback khi QHturbo trả 502.
+`tests/aapanel-sim.sh` sets up a **simulated aaPanel**: the `/www/server/...` layout, the `www` user, aaPanel-style `enable-php-XX.conf` and vhosts, real nginx, and a PHP-FPM playing the role of aaPanel's PHP. Result **12/12**: check, sync-ini, enable (the site runs on QHturbo with aaPanel's exact `upload_max_filesize` and `disable_functions`), status, disable (vhost restored identical to the original), and automatic rollback when QHturbo returns 502.
 
-**Chưa thử trên aaPanel thật.** Nếu gặp lỗi, hãy gửi lại kết quả của `sudo scripts/aapanel.sh check` và đoạn log lỗi.
+**Not yet tried on a real aaPanel.** If you hit an error, please send back the output of `sudo scripts/aapanel.sh check` and the relevant error log excerpt.

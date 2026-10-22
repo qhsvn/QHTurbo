@@ -1,5 +1,7 @@
 # PHP QHturbo — Kế hoạch triển khai, kỹ thuật và nhật ký phát triển
 
+[English](original-plan.md) · **Tiếng Việt**
+
 > **Tên dự án:** PHP QHturbo — High-Performance PHP Runtime  
 > **Ngày lập:** 22/10/2026  
 > **Vị trí dự án:** repo GitHub `qhsvn/QHTurbo` (clone về bất kỳ thư mục nào)  

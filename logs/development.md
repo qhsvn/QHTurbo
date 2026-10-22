@@ -1,54 +1,56 @@
-# Nhật ký phát triển
+# Development log
 
-Mỗi thay đổi một mục, theo mẫu trong `docs/KE-HOACH-GOC.md` §6.2. Giờ theo UTC.
+**English** · [Tiếng Việt](development.vi.md)
 
-## 2026-10-22 06:30 — QHT-P01-001 Khởi tạo dự án
+One entry per change, following the template in `docs/original-plan.md` §6.2. Times are in UTC.
 
-- **Mục tiêu:** dựng repo, công cụ build/test/benchmark có thể tái lập, theo kế hoạch gốc.
-- **Môi trường:** máy build Linux đám mây (Ubuntu 24.04.5, kernel 6.18, 4 vCPU, 15 GiB RAM, gcc 13.3.0). Không ghi trực tiếp được vào máy Windows của người dùng, nên dự án đẩy lên GitHub `qhsvn/QHTurbo` (ISSUE-002).
-- **Kết quả:**
-  - Xác minh tag upstream mới nhất của từng nhánh qua `git ls-remote` (commit ghim trong `config/versions/`). `php-8.5.12` = `136e049a…`, khớp kế hoạch gốc.
-  - Người dùng yêu cầu thêm hỗ trợ **PHP 7.4 trở lên**, nên đã chuyển toàn bộ script sang đa phiên bản (`QHT_PHP=7.4…8.5`).
-  - Build baseline 8.5.12 và 7.4.33 thành công (gcc 13.3, `--disable-all` + cli/ctype/tokenizer/filter/mbstring/opcache). OPcache: tĩnh ở 8.5, `opcache.so` ở 7.4.
-- **Quyết định:** KEEP.
+## 2026-10-22 06:30 — QHT-P01-001 Project setup
 
-## 2026-10-22 07:00 — QHT-JIT-001 Biến thể build tối ưu (LTO + PGO)
+- **Goal:** set up the repo and reproducible build/test/benchmark tooling, following the original plan.
+- **Environment:** Linux cloud build machine (Ubuntu 24.04.5, kernel 6.18, 4 vCPU, 15 GiB RAM, gcc 13.3.0). It cannot write directly to the user's Windows machine, so the project is pushed to GitHub `qhsvn/QHTurbo` (ISSUE-002).
+- **Results:**
+  - Verified the latest upstream tag of each branch via `git ls-remote` (commits pinned in `config/versions/`). `php-8.5.12` = `136e049a…`, matching the original plan.
+  - The user asked for support for **PHP 7.4 and later**, so all scripts were converted to multi-version (`QHT_PHP=7.4…8.5`).
+  - Baseline builds of 8.5.12 and 7.4.33 succeeded (gcc 13.3, `--disable-all` + cli/ctype/tokenizer/filter/mbstring/opcache). OPcache: static in 8.5, `opcache.so` in 7.4.
+- **Decision:** KEEP.
 
-- **Giả thuyết:** LTO + PGO giúp interpreter nhanh hơn mà không cần sửa mã nguồn.
-- **Kết quả lần 1:** LTO lỗi link vì global register variables (ISSUE-001), nên **bỏ LTO**, chỉ giữ PGO.
-- **Kết quả lần 2 (chỉ PGO):** đo nhanh 1 lần trên nbody (máy đang bận build): PGO 2.95 s so với baseline 2.63 s, tức **chậm hơn**.
-  - Phân tích: với `-fprofile-use`, GCC tối ưu kích thước cho các hàm/handler opcode không chạy trong lúc huấn luyện. Zend VM có hàng nghìn handler chuyên biệt hóa, nhiều cái chỉ chạy ở workload đo.
-  - Sửa: thêm `-fprofile-partial-training` (GCC ≥ 10).
-- **Kết quả lần 3 (PGO v1 + partial-training, đo đầy đủ 10 vòng):** interp −4.1%, jit −4.7% (geomean), trong khi A/A chỉ +0.6% / −2.5%. Chi tiết trong `logs/benchmarks.md`.
-- **Quyết định:** NO-GO cho v1, điều tra tiếp (v2 bên dưới).
+## 2026-10-22 07:00 — QHT-JIT-001 Optimized build variant (LTO + PGO)
 
-## 2026-10-22 07:35 — QHT-JIT-001 (tiếp) PGO v2
+- **Hypothesis:** LTO + PGO make the interpreter faster without any source changes.
+- **Result of attempt 1:** LTO fails at link time because of global register variables (ISSUE-001), so **LTO was dropped**, keeping only PGO.
+- **Result of attempt 2 (PGO only):** a quick single run on nbody (machine busy building): PGO 2.95 s vs baseline 2.63 s, i.e. **slower**.
+  - Analysis: with `-fprofile-use`, GCC optimizes for size the opcode functions/handlers that did not run during training. The Zend VM has thousands of specialized handlers, many of which run only in the measured workloads.
+  - Fix: added `-fprofile-partial-training` (GCC ≥ 10).
+- **Result of attempt 3 (PGO v1 + partial-training, full 10-round measurement):** interp −4.1%, jit −4.7% (geomean), while A/A was only +0.6% / −2.5%. Details in `logs/benchmarks.md`.
+- **Decision:** NO-GO for v1, investigate further (v2 below).
 
-- **Giả thuyết:** PGO v1 chậm vì huấn luyện không bật OPcache, nên các handler chuyên biệt hóa theo kiểu (chỉ sinh ra khi bật optimizer) bị coi là mã lạnh.
-- **Thay đổi:** `scripts/pgo-train.sh` chạy tập huấn luyện ở 3 chế độ: OPcache on, OPcache off, JIT tracing; PHPT với OPcache on; thêm `Zend/bench.php` và `ext/spl/tests`.
-- **Lệnh:** `QHT_PHP=8.5 scripts/build.sh qhturbo-pgo`; `taskset -c 2 python3 scripts/bench.py php --php 8.5 --variants baseline,qhturbo,qhturbo-pgo --runs 10 --name pgo-v2`
-- **Benchmark:** interp +0.3%, jit −3.2% (geomean). Chi tiết trong `logs/benchmarks.md`.
-- **Quyết định:** **NO-GO.** Không đưa PGO vào bản khuyến nghị. Ý tưởng tiếp theo (Phase 4): huấn luyện bằng request web thật (FPM), so với clang PGO, đo trên máy riêng ít nhiễu.
+## 2026-10-22 07:35 — QHT-JIT-001 (continued) PGO v2
 
-## 2026-10-22 08:05 — QHT-P01-002 Sửa build 7.4 thiếu json
+- **Hypothesis:** PGO v1 is slow because training ran without OPcache, so the type-specialized handlers (emitted only when the optimizer is on) were treated as cold code.
+- **Change:** `scripts/pgo-train.sh` runs the training set in 3 modes: OPcache on, OPcache off, JIT tracing; PHPT with OPcache on; added `Zend/bench.php` and `ext/spl/tests`.
+- **Commands:** `QHT_PHP=8.5 scripts/build.sh qhturbo-pgo`; `taskset -c 2 python3 scripts/bench.py php --php 8.5 --variants baseline,qhturbo,qhturbo-pgo --runs 10 --name pgo-v2`
+- **Benchmark:** interp +0.3%, jit −3.2% (geomean). Details in `logs/benchmarks.md`.
+- **Decision:** **NO-GO.** PGO is not included in the recommended build. Next ideas (Phase 4): train with real web requests (FPM), compare against clang PGO, measure on a dedicated low-noise machine.
 
-- **Hiện tượng:** workload `json` lỗi (exit 255) trên 7.4: `--disable-all` tắt json, vì ở 7.4 json chưa phải extension lõi.
-- **Sửa:** `config/build.env` thêm `--enable-json` khi `QHT_PHP=7.*`. Build lại 7.4 baseline, `php -m` đã có json.
-- **Quyết định:** KEEP.
+## 2026-10-22 08:05 — QHT-P01-002 Fix 7.4 build missing json
 
-## 2026-10-22 09:00 — QHT-WEB-001 Hai chế độ Compatible / Performance
+- **Symptom:** the `json` workload fails (exit 255) on 7.4: `--disable-all` disables json, because in 7.4 json is not yet a core extension.
+- **Fix:** `config/build.env` adds `--enable-json` when `QHT_PHP=7.*`. Rebuilt the 7.4 baseline; `php -m` now lists json.
+- **Decision:** KEEP.
 
-- **Yêu cầu của người dùng:** (1) Compatible: PHP chuẩn, PHP-FPM, Composer, ứng dụng cũ, thay đổi tối thiểu; (2) Performance: worker chạy lâu dài, event loop, async I/O, chấp nhận quy tắc trạng thái; (3) đề xuất cải tiến.
-- **Thiết kế:** cùng một binary (profile `full`); hai chế độ khác nhau ở cách chạy và cấu hình. Performance là runtime PHP thuần (`runtime/`), không cần extension ngoài, nên dễ kiểm soát. Yêu cầu PHP 8.1+ vì dùng Fiber.
-- **Kiểm chứng Compatible:** build 8.5 `full` (51 module), `install.sh` vào `/opt/qhturbo/8.5`, `php-fpm -t` OK. nginx → FPM chạy app cũ (session, cookie, header, upload, SQLite, intl, gd, openssl, sodium). Composer 2.8 trên PHP QHturbo cài Laravel 13.38 (hơn 100 package). Laravel qua FPM trả 200, `artisan test` 2/2.
-- **Kiểm chứng Performance:** 16 test (PHP 8.5.12 và 8.3.6). Benchmark web: 7–8× ở bài CPU, 2,5× ở bài I/O với một nửa RAM. Phát hiện và sửa 2 lỗi nhờ benchmark (ISSUE-004, ISSUE-005).
-- **Quyết định:** KEEP. Bước tiếp theo theo `docs/proposals.md`: driver MySQL/Redis async, adapter Laravel/Symfony, plugin aaPanel.
+## 2026-10-22 09:00 — QHT-WEB-001 Two modes: Compatible / Performance
 
-## 2026-10-22 11:00 — QHT-WEB-004/005 Redis/MySQL async và adapter Laravel/Symfony
+- **User requirements:** (1) Compatible: standard PHP, PHP-FPM, Composer, legacy applications, minimal changes; (2) Performance: long-running workers, event loop, async I/O, accepting state rules; (3) propose improvements.
+- **Design:** one and the same binary (`full` profile); the two modes differ in how they run and how they are configured. Performance is a pure-PHP runtime (`runtime/`) that needs no external extension, which keeps it easy to control. It requires PHP 8.1+ because it uses Fibers.
+- **Compatible verification:** built 8.5 `full` (51 modules), `install.sh` into `/opt/qhturbo/8.5`, `php-fpm -t` OK. nginx → FPM runs a legacy app (session, cookie, header, upload, SQLite, intl, gd, openssl, sodium). Composer 2.8 on PHP QHturbo installed Laravel 13.38 (more than 100 packages). Laravel via FPM returns 200, `artisan test` 2/2.
+- **Performance verification:** 16 tests (PHP 8.5.12 and 8.3.6). Web benchmark: 7–8× on the CPU tests, 2.5× on the I/O test with half the RAM. Found and fixed 2 bugs thanks to benchmarking (ISSUE-004, ISSUE-005).
+- **Decision:** KEEP. Next steps per `docs/proposals.md`: async MySQL/Redis drivers, Laravel/Symfony adapters, aaPanel plugin.
 
-- **Yêu cầu:** làm mục 1 (Async MySQL/Redis) và mục 2 (Adapter Laravel/Symfony) trong `docs/proposals.md`.
-- **Thiết kế MySQL:** dùng `MYSQLI_ASYNC` + `mysqli_poll` thay vì tự viết giao thức MySQL. mysqlnd lo xác thực (kể cả `caching_sha2_password`), TLS và charset. Đổi lại phải poll mỗi 0,5 ms khi có query đang chạy (không poll khi rảnh).
-- **Thiết kế adapter:** chuyển request qua HttpFoundation. Laravel: dọn trạng thái kiểu Octane trên một application dùng chung (không clone). Symfony: dựa vào `kernel.reset` có sẵn.
-- **Kiểm chứng:** 24 test runtime và 6 test framework pass. Đo tải: Laravel 6,7–14,6×, Symfony 6,3×, MySQL async 1,7× so với FPM ×64. Kiểm tra rò rỉ Laravel (20.000 request): 2 byte/request.
-- **Lỗi tìm ra và đã sửa:** ISSUE-009 (Symfony lộ chi tiết lỗi), ISSUE-010 (upload Laravel), ISSUE-011 (driver `array`), ISSUE-012 (cách đo).
-- **Quyết định:** KEEP.
+## 2026-10-22 11:00 — QHT-WEB-004/005 Async Redis/MySQL and Laravel/Symfony adapters
+
+- **Requirement:** implement item 1 (Async MySQL/Redis) and item 2 (Laravel/Symfony adapters) in `docs/proposals.md`.
+- **MySQL design:** use `MYSQLI_ASYNC` + `mysqli_poll` instead of writing our own MySQL protocol implementation. mysqlnd handles authentication (including `caching_sha2_password`), TLS and charset. The trade-off is polling every 0.5 ms while a query is in flight (no polling when idle).
+- **Adapter design:** pass requests through HttpFoundation. Laravel: Octane-style state cleanup on a shared application (no cloning). Symfony: relies on the built-in `kernel.reset`.
+- **Verification:** 24 runtime tests and 6 framework tests pass. Load tests: Laravel 6.7–14.6×, Symfony 6.3×, async MySQL 1.7× vs FPM ×64. Laravel leak check (20,000 requests): 2 bytes/request.
+- **Bugs found and fixed:** ISSUE-009 (Symfony leaks error details), ISSUE-010 (Laravel uploads), ISSUE-011 (`array` driver), ISSUE-012 (measurement method).
+- **Decision:** KEEP.

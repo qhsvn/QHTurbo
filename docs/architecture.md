@@ -1,79 +1,81 @@
-# Kiến trúc QHturbo
+# QHturbo architecture
 
-## 1. QHturbo là gì
+**English** · [Tiếng Việt](architecture.vi.md)
 
-QHturbo **không phải bản fork viết lại PHP**. Nó gồm:
+## 1. What QHturbo is
 
-1. **Mã nguồn PHP chính thức** (`php-src`) ghim theo tag của từng nhánh 7.4 → 8.5.
-2. **Chuỗi bản vá** (`patches/<nhánh>/series`), áp lên tag đó theo thứ tự. Mỗi bản vá nhỏ, có mã công việc (`QHT-ENG-001-...`) và đi kèm số đo.
-3. **Quy trình build tối ưu**: cùng mã nguồn, nhưng biên dịch bằng **PGO** (Profile-Guided Optimization). Không dùng LTO vì LTO của GCC xung đột với global register variables của Zend VM (xem `logs/issues.md`, ISSUE-001).
-4. **Cấu hình runtime** (OPcache, JIT, preload, FPM) đã đo đạc.
-5. **Bộ đo và kiểm thử** để chứng minh mọi thay đổi.
+QHturbo is **not a fork that rewrites PHP**. It consists of:
 
-Repo này chỉ chứa phần 2–5. `php-src`, worktree và binary được tạo lại từ script nên không commit.
+1. **The official PHP source** (`php-src`), pinned to a tag for each branch 7.4 → 8.5.
+2. **A patch series** (`patches/<branch>/series`), applied on top of that tag in order. Each patch is small, carries a task ID (`QHT-ENG-001-...`) and comes with measurements.
+3. **An optimized build process**: same source code, but compiled with **PGO** (Profile-Guided Optimization). LTO is not used because GCC's LTO conflicts with the Zend VM's global register variables (see `logs/issues.md`, ISSUE-001).
+4. **Runtime configuration** (OPcache, JIT, preload, FPM) that has been measured.
+5. **A benchmark and test suite** to prove every change.
 
-## 2. Luồng build
+This repo contains only parts 2–5. `php-src`, the worktrees and the binaries are recreated from scripts, so they are not committed.
+
+## 2. Build flow
 
 ```text
-config/versions/8.5.env ──► bootstrap.sh ──► php-src (shallow, tag đã xác minh)
+config/versions/8.5.env ──► bootstrap.sh ──► php-src (shallow, verified tag)
                                                 │
                     ┌───────────────────────────┼─────────────────────────────┐
                     ▼                           ▼                             ▼
      worktrees/8.5/baseline        worktrees/8.5/qhturbo          worktrees/8.5/qhturbo-pgo
-     tag gốc, -O2                  tag + patches/8.5, -O2         tag + patches/8.5, -O2 + PGO
+     original tag, -O2             tag + patches/8.5, -O2         tag + patches/8.5, -O2 + PGO
                     │                           │                             │
                     ▼                           ▼                             ▼
      build/8.5/baseline/bin/php    build/8.5/qhturbo/bin/php      build/8.5/qhturbo-pgo/bin/php
 ```
 
-- `baseline` so với `qhturbo`: tách riêng tác dụng của **bản vá mã nguồn**.
-- `qhturbo` so với `qhturbo-pgo`: tách riêng tác dụng của **trình biên dịch** (PGO).
-- Mỗi binary có `BUILD-INFO.txt`: tag, commit, danh sách patch, cờ configure, sha256, phiên bản gcc.
+- `baseline` vs `qhturbo`: isolates the effect of the **source patches**.
+- `qhturbo` vs `qhturbo-pgo`: isolates the effect of the **compiler** (PGO).
+- Each binary has a `BUILD-INFO.txt`: tag, commit, patch list, configure flags, sha256, gcc version.
 
-### PGO hoạt động thế nào
+### How PGO works
 
-1. `make prof-gen`: build bản có đo đếm (`-fprofile-generate`).
-2. `scripts/pgo-train.sh`: chạy tập huấn luyện (`benchmarks/training/`, `Zend/micro_bench.php`, PHPT của Zend/array/string/json). Trình biên dịch ghi lại nhánh nào hay chạy, hàm nào nóng.
-3. `make prof-use`: build lại, dùng dữ liệu đó để sắp xếp mã nóng liền nhau, inline đúng chỗ và dự đoán nhánh tốt hơn.
+1. `make prof-gen`: build an instrumented binary (`-fprofile-generate`).
+2. `scripts/pgo-train.sh`: run the training set (`benchmarks/training/`, `Zend/micro_bench.php`, the Zend/array/string/json PHPTs). The compiler records which branches are taken often and which functions are hot.
+3. `make prof-use`: rebuild, using that data to lay out hot code contiguously, inline in the right places and predict branches better.
 
-PGO không đổi ngữ nghĩa chương trình, chỉ đổi cách bố trí mã máy. Tập huấn luyện tách khỏi tập đo để tránh kết quả ảo.
+PGO does not change program semantics, only the layout of the machine code. The training set is kept separate from the benchmark set to avoid misleading results.
 
-## 3. Các lớp tối ưu và phạm vi
+## 3. Optimization layers and scope
 
-| Lớp | Cách làm trong QHturbo | Trạng thái |
+| Layer | How QHturbo does it | Status |
 |---|---|---|
-| Trình biên dịch C | PGO (mọi nhánh 7.4 → 8.5) | Đã có, đã đo trên 8.5 và 7.4 |
-| OPcache / JIT | Cấu hình `config/ini/` + đo JIT on/off | Đã có cấu hình và số đo CLI |
-| Zend VM / opcode | Bản vá C trong `patches/<nhánh>/` | Chưa có bản vá được chấp nhận (Phase 2) |
-| Bộ nhớ / HashTable | Bản vá C | Chưa bắt đầu (Phase 3) |
-| PHP-FPM / web | Build FPM, cấu hình pool, wrk/k6 | Chưa bắt đầu (Phase 5) |
+| C compiler | PGO (every branch 7.4 → 8.5) | Done, measured on 8.5 and 7.4 |
+| OPcache / JIT | Configuration in `config/ini/` + JIT on/off measurements | Configuration and CLI measurements done |
+| Zend VM / opcode | C patches in `patches/<branch>/` | No accepted patch yet (Phase 2) |
+| Memory / HashTable | C patches | Not started (Phase 3) |
+| PHP-FPM / web | FPM build, pool configuration, wrk/k6 | Not started (Phase 5) |
 
-## 4. Vận hành (mục tiêu Phase 5)
+## 4. Operations (Phase 5 goal)
 
-`Client → Nginx → PHP-FPM (QHturbo, socket riêng) + OPcache → Redis (cache) / MySQL (nguồn dữ liệu chính)`
+`Client → Nginx → PHP-FPM (QHturbo, separate socket) + OPcache → Redis (cache) / MySQL (primary data source)`
 
-QHturbo cài vào `/opt/qhturbo/<nhánh>/<phiên bản>/`, chạy service FPM riêng, **không ghi đè** `/www/server/php/` của aaPanel. Muốn quay lại PHP gốc chỉ cần đổi `fastcgi_pass` về socket cũ rồi reload Nginx.
+QHturbo installs into `/opt/qhturbo/<branch>/<version>/`, runs its own FPM service and **does not overwrite** aaPanel's `/www/server/php/`. To go back to the original PHP, just point `fastcgi_pass` back to the old socket and reload Nginx.
 
-## 5. Bố cục thư mục
+## 5. Directory layout
 
 ```text
 QHTurbo/
 ├── README.md  ROADMAP.md  PROJECT_STATUS.md  CHANGELOG.md
 ├── config/
-│   ├── versions/<nhánh>.env   # tag + commit upstream được ghim
-│   ├── build.env              # cờ configure/CFLAGS dùng chung
-│   └── ini/                   # profile OPcache / JIT / preload cho production
-├── patches/<nhánh>/series     # chuỗi bản vá mã nguồn theo nhánh
+│   ├── versions/<branch>.env  # pinned upstream tag + commit
+│   ├── build.env              # shared configure/CFLAGS flags
+│   └── ini/                   # OPcache / JIT / preload profiles for production
+├── patches/<branch>/series    # per-branch source patch series
 ├── scripts/                   # bootstrap, build, run-tests, bench.py, make-patch, pgo-train
 ├── benchmarks/
-│   ├── workloads/<tên>/main.{php,py,js,go}
-│   ├── workloads.json         # kích thước đầu vào
-│   └── training/              # tập huấn luyện PGO (không dùng để đo)
-├── tests/                     # kiểm tra riêng của QHturbo
-├── results/                   # báo cáo benchmark + PHPT (summary.md)
-├── logs/                      # nhật ký phát triển, vấn đề, benchmark
-├── docs/                      # kiến trúc, chính sách, phương pháp, các phase
+│   ├── workloads/<name>/main.{php,py,js,go}
+│   ├── workloads.json         # input sizes
+│   └── training/              # PGO training set (not used for measurement)
+├── tests/                     # QHturbo's own checks
+├── results/                   # benchmark + PHPT reports (summary.md)
+├── logs/                      # development, issue and benchmark logs
+├── docs/                      # architecture, policies, methodology, phases
 │
-│   (tạo ra khi chạy, không commit — nằm trong QHT_LAB)
-├── php-src/  worktrees/<nhánh>/<biến thể>/  build/<nhánh>/<biến thể>/
+│   (generated at run time, not committed — lives in QHT_LAB)
+├── php-src/  worktrees/<branch>/<variant>/  build/<branch>/<variant>/
 ```

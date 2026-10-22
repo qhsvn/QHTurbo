@@ -1,52 +1,54 @@
-# Chính sách tương thích
+# Compatibility policy
 
-## 1. Các phiên bản PHP được hỗ trợ
+**English** · [Tiếng Việt](compatibility-policy.vi.md)
 
-QHturbo hỗ trợ **PHP 7.4 trở lên**. Mỗi nhánh PHP được build từ đúng tag chính thức của nhánh đó, không trộn mã giữa các nhánh. Vì vậy ứng dụng đang chạy PHP 7.4 vẫn chạy trên QHturbo 7.4 với cùng hành vi.
+## 1. Supported PHP versions
 
-| Nhánh | Tag upstream đang ghim | Hỗ trợ upstream (10/2026) | JIT | OPcache | Ghi chú |
+QHturbo supports **PHP 7.4 and later**. Each PHP branch is built from that branch's exact official tag, with no code mixed between branches. So an application running on PHP 7.4 still runs on QHturbo 7.4 with the same behavior.
+
+| Branch | Pinned upstream tag | Upstream support (10/2026) | JIT | OPcache | Notes |
 |---|---|---|---|---|---|
-| 7.4 | `php-7.4.33` | **Hết hạn (EOL 11/2022)** | Không | shared (`opcache.so`) | Chỉ cho ứng dụng cũ, cần kế hoạch nâng cấp |
-| 8.0 | `php-8.0.30` | **Hết hạn (EOL 11/2023)** | Có | shared | Như trên |
-| 8.1 | `php-8.1.34` | **Hết hạn (EOL 12/2025)** | Có | shared | Như trên |
-| 8.2 | `php-8.2.35` | Chỉ vá bảo mật (đến 12/2026) | Có | shared | |
-| 8.3 | `php-8.3.36` | Chỉ vá bảo mật (đến 12/2027) | Có | shared | |
-| 8.4 | `php-8.4.27` | Đang hỗ trợ đầy đủ | Có | shared | |
-| 8.5 | `php-8.5.12` | Đang hỗ trợ đầy đủ | Có | tĩnh (luôn có sẵn) | Nhánh chính để phát triển tối ưu |
+| 7.4 | `php-7.4.33` | **Ended (EOL 11/2022)** | No | shared (`opcache.so`) | Legacy applications only; needs an upgrade plan |
+| 8.0 | `php-8.0.30` | **Ended (EOL 11/2023)** | Yes | shared | Same as above |
+| 8.1 | `php-8.1.34` | **Ended (EOL 12/2025)** | Yes | shared | Same as above |
+| 8.2 | `php-8.2.35` | Security fixes only (until 12/2026) | Yes | shared | |
+| 8.3 | `php-8.3.36` | Security fixes only (until 12/2027) | Yes | shared | |
+| 8.4 | `php-8.4.27` | Active full support | Yes | shared | |
+| 8.5 | `php-8.5.12` | Active full support | Yes | static (always available) | Main branch for optimization work |
 
-Tag và commit được ghim trong `config/versions/<nhánh>.env`. `scripts/bootstrap.sh` kiểm tra tag phải trỏ đúng commit đã ghim, sai thì dừng.
+Tags and commits are pinned in `config/versions/<branch>.env`. `scripts/bootstrap.sh` checks that the tag points to the pinned commit and stops if it does not.
 
-### Cảnh báo về các nhánh EOL (7.4, 8.0, 8.1)
+### Warning about EOL branches (7.4, 8.0, 8.1)
 
-Nhóm PHP chính thức **không còn phát hành bản vá bảo mật** cho các nhánh này. QHturbo build được chúng để:
+The official PHP team **no longer releases security fixes** for these branches. QHturbo can build them in order to:
 
-- tăng tốc ứng dụng cũ trong lúc chuẩn bị nâng cấp,
-- so sánh hiệu năng giữa các thế hệ PHP trên cùng máy.
+- speed up legacy applications while an upgrade is being prepared,
+- compare performance across PHP generations on the same machine.
 
-QHturbo **không tự vá bảo mật** cho nhánh EOL. Nếu đưa lên máy chủ thật:
+QHturbo **does not apply its own security fixes** to EOL branches. If you put them on a real server:
 
-- chỉ dùng sau staging, không mở trực tiếp ra Internet khi có lựa chọn khác,
-- theo dõi CVE của PHP và các extension đang dùng,
-- có lộ trình chuyển lên 8.3+ (xem bảng trên).
+- use them only after staging, and do not expose them directly to the Internet when there is an alternative,
+- track CVEs for PHP and the extensions in use,
+- have a migration path to 8.3+ (see the table above).
 
-Các script in cảnh báo mỗi khi bootstrap hoặc build một nhánh EOL.
+The scripts print a warning whenever an EOL branch is bootstrapped or built.
 
-## 2. Nguyên tắc tương thích cho bản vá QHturbo
+## 2. Compatibility principles for QHturbo patches
 
-1. **Không đổi cú pháp và ngữ nghĩa PHP.** Mã chạy đúng trên PHP gốc cùng nhánh phải cho cùng kết quả trên QHturbo, kể cả thông báo lỗi, warning và thứ tự phần tử mảng.
-2. **Không phá ABI extension** (`ZEND_MODULE_API_NO`, cấu trúc `zval`, `zend_object`, `HashTable` công khai). Bản vá nào cần đổi ABI phải ghi rõ trong `patches/<nhánh>/` và CHANGELOG, và không được vào bản `stable` nếu chưa duyệt.
-3. **Mỗi bản vá chỉ áp dụng cho nhánh đã kiểm thử.** Một tối ưu cho 8.5 không tự động áp sang 7.4. Muốn port sang nhánh khác thì tạo patch riêng trong `patches/<nhánh>/`, chạy lại PHPT và benchmark của nhánh đó.
-4. **Tối ưu ở mức trình biên dịch (PGO) áp dụng cho mọi nhánh**, vì không đổi mã nguồn. Vẫn phải chạy PHPT trên binary đã tối ưu để phát hiện lỗi compiler.
-5. **Mặc định an toàn:** JIT và các cấu hình mạnh tay để tắt trong cấu hình mẫu cho đến khi benchmark của chính ứng dụng chứng minh có lợi.
+1. **Do not change PHP syntax or semantics.** Code that runs correctly on the original PHP of the same branch must give the same result on QHturbo, including error messages, warnings and array element order.
+2. **Do not break the extension ABI** (`ZEND_MODULE_API_NO`, the public `zval`, `zend_object`, `HashTable` structures). Any patch that needs an ABI change must say so clearly in `patches/<branch>/` and the CHANGELOG, and must not go into a `stable` release until it has been reviewed.
+3. **Each patch applies only to the branch it was tested on.** An optimization for 8.5 is not automatically applied to 7.4. To port it to another branch, create a separate patch in `patches/<branch>/` and rerun that branch's PHPTs and benchmarks.
+4. **Compiler-level optimization (PGO) applies to every branch**, because it does not change the source code. The PHPTs must still be run on the optimized binary to catch compiler bugs.
+5. **Safe defaults:** JIT and aggressive settings are left off in the sample configuration until the application's own benchmarks prove they help.
 
-## 3. Cổng kiểm tra tương thích
+## 3. Compatibility gates
 
-| Mức | Kiểm tra | Bắt buộc trước |
+| Level | Check | Required before |
 |---|---|---|
-| 1 | `php -l` toàn bộ benchmark trên 7.4 → 8.5 (CI `workloads`) | mỗi commit |
-| 2 | Kết quả benchmark giống hệt giữa baseline và QHturbo (`bench.py` đánh dấu `INVALID` nếu khác) | mỗi lần đo |
-| 3 | PHPT: số test fail của QHturbo **không lớn hơn** baseline cùng nhánh, cùng chế độ (interp/opcache/jit) | mỗi bản vá |
-| 4 | Composer + framework (Laravel/WordPress) chạy test suite của chính chúng | Phase 5 |
-| 5 | Ma trận ABI/extension (PECL phổ biến: redis, imagick, swoole...) | release |
+| 1 | `php -l` on all benchmarks on 7.4 → 8.5 (CI `workloads`) | every commit |
+| 2 | Benchmark output identical between baseline and QHturbo (`bench.py` marks `INVALID` if it differs) | every measurement |
+| 3 | PHPT: QHturbo's number of failing tests is **not greater than** the baseline's for the same branch and mode (interp/opcache/jit) | every patch |
+| 4 | Composer + frameworks (Laravel/WordPress) running their own test suites | Phase 5 |
+| 5 | ABI/extension matrix (popular PECL: redis, imagick, swoole...) | release |
 
-Test fail sẵn có ở baseline (do môi trường, mạng, locale...) được ghi lại trong `results/tests/` để so sánh. Không coi đó là lỗi của QHturbo, nhưng QHturbo cũng không được làm tăng số đó.
+Tests that already fail on baseline (due to environment, network, locale...) are recorded in `results/tests/` for comparison. They are not counted as QHturbo bugs, but QHturbo must not increase that number either.

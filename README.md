@@ -160,6 +160,14 @@ python3 scripts/bench.py cross --php 8.5 --langs python,node,go     # compare la
 sudo benchmarks/web/run.sh                                          # Compatible vs Performance over HTTP
 ```
 
+## Apply to your servers today
+
+1. **Upgrade to PHP 8.3+** if your application allows it (security, JIT, less RAM).
+2. **Production OPcache:** enough `memory_consumption` and `max_accelerated_files`; `validate_timestamps=0` if every deploy reloads FPM.
+3. **JIT:** enable it for compute-heavy applications. For typical web apps, measure first, then enable.
+4. **Preload** for large frameworks.
+5. Most web latency is in **MySQL/Redis/I/O**. Optimise queries, indexes and caching, and consider Performance mode + async I/O.
+
 ## Repository layout
 
 ```text
@@ -179,13 +187,13 @@ docs/              architecture, modes, aaPanel guide, proposals, policies, phas
 
 ## Documentation
 
-Detailed documentation is currently written in Vietnamese:
+Every document is available in English and Vietnamese (`*.vi.md`):
 
 - [docs/aapanel.md](docs/aapanel.md): install on aaPanel step by step
 - [docs/modes/compatible.md](docs/modes/compatible.md), [docs/modes/performance.md](docs/modes/performance.md): the two run modes
 - [docs/proposals.md](docs/proposals.md): prioritised improvement proposals
 - [docs/architecture.md](docs/architecture.md), [docs/benchmark-methodology.md](docs/benchmark-methodology.md), [docs/compatibility-policy.md](docs/compatibility-policy.md), [docs/security-and-release.md](docs/security-and-release.md)
-- [ROADMAP.md](ROADMAP.md), [PROJECT_STATUS.md](PROJECT_STATUS.md), [CHANGELOG.md](CHANGELOG.md), original plan: [docs/KE-HOACH-GOC.md](docs/KE-HOACH-GOC.md)
+- [ROADMAP.md](ROADMAP.md), [PROJECT_STATUS.md](PROJECT_STATUS.md), [CHANGELOG.md](CHANGELOG.md), original plan: [docs/original-plan.md](docs/original-plan.md)
 
 ## Principles
 

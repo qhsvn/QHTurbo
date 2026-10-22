@@ -1,25 +1,27 @@
-# PHASE 04 — Trình biên dịch / OPcache / JIT (`QHT-P04`)
+# PHASE 04 — Compiler / OPcache / JIT (`QHT-P04`)
 
-**Trạng thái:** `IN_PROGRESS`. PGO và số đo JIT on/off đã có; tối ưu pass của compiler PHP chưa bắt đầu.
+**English** · [Tiếng Việt](phase-04-compiler-jit.vi.md)
 
-## Đã làm
+**Status:** `IN_PROGRESS`. PGO and JIT on/off measurements are done; optimization of the PHP compiler passes has not started.
 
-- Biến thể `qhturbo-pgo`: PGO (gcc `-fprofile-generate`/`-fprofile-use`). Tập huấn luyện tách khỏi tập đo.
-- LTO đã thử và **loại bỏ**: GCC báo lỗi `global register variable follows a function definition` (ISSUE-001).
-- `bench.py` đo cả `interp` (OPcache, không JIT) và `jit` (tracing JIT, buffer 128M) cho mọi nhánh ≥ 8.0.
-- Profile cấu hình: `config/ini/opcache-production.ini`, `config/ini/jit.ini`.
+## Done
 
-Số đo xem trong `results/` và `logs/benchmarks.md`.
+- `qhturbo-pgo` variant: PGO (gcc `-fprofile-generate`/`-fprofile-use`). The training set is separate from the benchmark set.
+- LTO was tried and **dropped**: GCC reports the error `global register variable follows a function definition` (ISSUE-001).
+- `bench.py` measures both `interp` (OPcache, no JIT) and `jit` (tracing JIT, 128M buffer) for every branch ≥ 8.0.
+- Configuration profiles: `config/ini/opcache-production.ini`, `config/ini/jit.ini`.
 
-## Việc còn lại
+See the measurements in `results/` and `logs/benchmarks.md`.
 
-- [ ] Thử lại LTO theo cách khác: build bằng clang, hoặc biên dịch các file dùng global register (`zend_execute.c`, `ext/opcache/jit/zend_jit_vm_helpers.c`) với `-fno-lto`.
-- [ ] Đo JIT `function` và `tracing` với các mức `opcache.jit=1254/1255`, so với interpreter.
-- [ ] Chạy PHPT với JIT trên binary PGO (`scripts/run-tests.sh qhturbo-pgo jit`).
-- [ ] Đánh giá pass tối ưu trong `Zend/Optimizer/` (DFA, SCCP, inference) với code framework thực tế.
-- [ ] Kiểm tra deoptimization, exception, tràn số nguyên, kiểu động, debug info khi bật JIT.
-- [ ] Chính sách: JIT **tắt mặc định** trong profile web, chỉ bật khi benchmark của chính ứng dụng cho thấy có lợi.
+## Remaining work
 
-## Điều kiện hoàn thành
+- [ ] Retry LTO a different way: build with clang, or compile the files that use global registers (`zend_execute.c`, `ext/opcache/jit/zend_jit_vm_helpers.c`) with `-fno-lto`.
+- [ ] Measure JIT `function` and `tracing` at the `opcache.jit=1254/1255` levels, compared with the interpreter.
+- [ ] Run the PHPTs with JIT on the PGO binary (`scripts/run-tests.sh qhturbo-pgo jit`).
+- [ ] Evaluate the optimization passes in `Zend/Optimizer/` (DFA, SCCP, inference) on real framework code.
+- [ ] Check deoptimization, exceptions, integer overflow, dynamic types, and debug info with JIT enabled.
+- [ ] Policy: JIT is **off by default** in the web profile, enabled only when the application's own benchmarks show a gain.
 
-Có số liệu cho từng chế độ, không crash, không sai ngữ nghĩa, có chính sách bật/tắt rõ ràng.
+## Definition of done
+
+Figures for each mode, no crashes, no semantic errors, and a clear on/off policy.

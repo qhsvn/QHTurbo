@@ -7,7 +7,7 @@ QHturbo giúp ứng dụng PHP chạy nhanh hơn, **có số đo kiểm chứng 
 - **QHturbo Compatible:** PHP-FPM chuẩn. Chạy WordPress, Laravel, Composer và code cũ **không cần sửa code**.
 - **QHturbo Performance:** worker chạy lâu dài, event loop, async I/O, Redis/MySQL không chặn. Chạy **ứng dụng Laravel và Symfony không cần sửa code**, đạt **6–15× request/giây** so với PHP-FPM trong benchmark.
 
-> **Trạng thái (22/10/2026):** đã xong nền tảng, hai chế độ chạy, tích hợp aaPanel và bộ công cụ, đều đã kiểm thử. Bản thân binary PHP chưa nhanh hơn bản gốc: PGO đã thử 2 lần (NO-GO) và chưa có bản vá Zend Engine. Tốc độ hiện tại đến từ **cách chạy PHP** (worker, async I/O) và cấu hình. Số đo lấy trên VM đám mây dùng chung (nhiễu khoảng ±8%). Xem [PROJECT_STATUS.md](PROJECT_STATUS.md).
+> **Trạng thái (22/10/2026):** đã xong nền tảng, hai chế độ chạy, tích hợp aaPanel và bộ công cụ, đều đã kiểm thử. Bản thân binary PHP chưa nhanh hơn bản gốc: PGO đã thử 2 lần (NO-GO) và chưa có bản vá Zend Engine. Tốc độ hiện tại đến từ **cách chạy PHP** (worker, async I/O) và cấu hình. Số đo lấy trên VM đám mây dùng chung (nhiễu khoảng ±8%). Xem [PROJECT_STATUS.vi.md](PROJECT_STATUS.vi.md).
 
 ## Tính năng chính
 
@@ -52,14 +52,14 @@ QHturbo giúp ứng dụng PHP chạy nhanh hơn, **có số đo kiểm chứng 
 | Dành cho | Mọi site: WordPress, Laravel, code cũ, aaPanel | API và ứng dụng mới cần tốc độ cao |
 | Cách chạy | nginx → PHP-FPM | nginx → `qhturbo-serve` (worker chạy lâu dài, event loop, async I/O) |
 | PHP | 7.4 → 8.5 | 8.1 → 8.5 (Fiber) |
-| Sửa code | **Không** | Tuân thủ [quy tắc trạng thái](docs/modes/performance.md) (có công cụ quét và chế độ kiểm tra nghiêm) |
+| Sửa code | **Không** | Tuân thủ [quy tắc trạng thái](docs/modes/performance.vi.md) (có công cụ quét và chế độ kiểm tra nghiêm) |
 | Laravel 13 (4 vCPU, cấu hình production) | 288–353 req/s | **1.924–5.150 req/s (6,7–14,6×)** |
 | Symfony 8.1 | 1.737 req/s | **11.160 req/s (6,3×)** |
 | 3 query MySQL × 20 ms mỗi request | 1.011 req/s (64 tiến trình FPM) | **1.724 req/s** (MySQL async) |
 
 ## Kết quả đã đo được
 
-Toàn bộ số liệu và cách đo: [logs/benchmarks.md](logs/benchmarks.md), [`results/`](results/).
+Toàn bộ số liệu và cách đo: [logs/benchmarks.vi.md](logs/benchmarks.vi.md), [`results/`](results/).
 
 **Những gì thực sự làm PHP nhanh hơn** (PHP 8.5.12):
 
@@ -97,7 +97,7 @@ PHP nhanh hơn Python ở mọi bài. PHP nhanh hơn Node.js và ngang hoặc nh
 | 8.4 | php-8.4.27 | đầy đủ | có | có |
 | 8.5 | php-8.5.12 | đầy đủ | có | có |
 
-Profile `full` đã được build và kiểm thử trên 7.4 và 8.5; các nhánh khác dùng cùng script. CI kiểm tra mọi nhánh. Xem [chính sách tương thích](docs/compatibility-policy.md).
+Profile `full` đã được build và kiểm thử trên 7.4 và 8.5; các nhánh khác dùng cùng script. CI kiểm tra mọi nhánh. Xem [chính sách tương thích](docs/compatibility-policy.vi.md).
 
 ## Bắt đầu nhanh
 
@@ -111,7 +111,7 @@ sudo scripts/aapanel.sh enable  test.example.com --php=8.5   # chuyển 1 site; 
 sudo scripts/aapanel.sh disable test.example.com             # quay về PHP của aaPanel
 ```
 
-Hướng dẫn đầy đủ: [docs/aapanel.md](docs/aapanel.md).
+Hướng dẫn đầy đủ: [docs/aapanel.vi.md](docs/aapanel.vi.md).
 
 ### Máy chủ Linux bất kỳ (hoặc Windows qua WSL2)
 
@@ -148,7 +148,7 @@ php runtime/bin/qhturbo-serve app.php --port=8080 --workers=4 --strict-state
 php runtime/bin/qhturbo-serve /var/www/laravel --framework=laravel --workers=4
 ```
 
-Chi tiết, tuỳ chọn và quy tắc trạng thái: [docs/modes/performance.md](docs/modes/performance.md).
+Chi tiết, tuỳ chọn và quy tắc trạng thái: [docs/modes/performance.vi.md](docs/modes/performance.vi.md).
 
 ### Nghiên cứu và đo đạc
 
@@ -187,11 +187,11 @@ docs/              kiến trúc, các chế độ, hướng dẫn aaPanel, đề
 
 ## Tài liệu
 
-- [docs/aapanel.md](docs/aapanel.md): cài trên aaPanel từng bước
-- [docs/modes/compatible.md](docs/modes/compatible.md), [docs/modes/performance.md](docs/modes/performance.md): hai chế độ chạy
-- [docs/proposals.md](docs/proposals.md): đề xuất cải tiến theo thứ tự ưu tiên
-- [docs/architecture.md](docs/architecture.md), [docs/benchmark-methodology.md](docs/benchmark-methodology.md), [docs/compatibility-policy.md](docs/compatibility-policy.md), [docs/security-and-release.md](docs/security-and-release.md)
-- [ROADMAP.md](ROADMAP.md), [PROJECT_STATUS.md](PROJECT_STATUS.md), [CHANGELOG.md](CHANGELOG.md), kế hoạch gốc: [docs/KE-HOACH-GOC.md](docs/KE-HOACH-GOC.md)
+- [docs/aapanel.vi.md](docs/aapanel.vi.md): cài trên aaPanel từng bước
+- [docs/modes/compatible.vi.md](docs/modes/compatible.vi.md), [docs/modes/performance.vi.md](docs/modes/performance.vi.md): hai chế độ chạy
+- [docs/proposals.vi.md](docs/proposals.vi.md): đề xuất cải tiến theo thứ tự ưu tiên
+- [docs/architecture.vi.md](docs/architecture.vi.md), [docs/benchmark-methodology.vi.md](docs/benchmark-methodology.vi.md), [docs/compatibility-policy.vi.md](docs/compatibility-policy.vi.md), [docs/security-and-release.vi.md](docs/security-and-release.vi.md)
+- [ROADMAP.vi.md](ROADMAP.vi.md), [PROJECT_STATUS.vi.md](PROJECT_STATUS.vi.md), [CHANGELOG.vi.md](CHANGELOG.vi.md), kế hoạch gốc: [docs/original-plan.vi.md](docs/original-plan.vi.md)
 
 ## Nguyên tắc
 

@@ -1,53 +1,55 @@
-# Phương pháp benchmark
+# Benchmark methodology
 
-Mục tiêu: mọi con số về tốc độ đều **tái lập được** và **so sánh công bằng**.
+**English** · [Tiếng Việt](benchmark-methodology.vi.md)
 
-## 1. Workload
+Goal: every speed figure is **reproducible** and **fairly compared**.
 
-`benchmarks/workloads/<tên>/main.{php,py,js,go}`: cùng một thuật toán viết bằng 4 ngôn ngữ, in ra cùng một kết quả. Mã PHP dùng cú pháp 7.4 để mọi nhánh 7.4 → 8.5 chạy chung một file.
+## 1. Workloads
 
-| Workload | Đo cái gì | Loại |
+`benchmarks/workloads/<name>/main.{php,py,js,go}`: the same algorithm written in 4 languages, printing the same result. The PHP code uses 7.4 syntax so that every branch 7.4 → 8.5 runs the same file.
+
+| Workload | What it measures | Type |
 |---|---|---|
-| `nbody` | số thực, mảng lồng nhau, tham chiếu | CPU |
-| `spectral_norm` | gọi hàm nhỏ liên tục, số thực | CPU |
-| `fannkuch` | mảng số nguyên, hoán vị | CPU |
-| `mandelbrot` | vòng lặp số thực thuần, không cấp phát | CPU |
-| `binary_trees` | cấp phát/giải phóng nhiều, đệ quy, GC | Bộ nhớ |
-| `hashmap` | mảng kết hợp khóa chuỗi (đếm theo khóa) | Bộ nhớ/hash |
-| `json` | `json_encode`/`json_decode` dữ liệu kiểu API | Thư viện |
-| `strings` | nối chuỗi, `str_replace`, `explode`, `strtoupper` | Thư viện |
-| `objects` | tạo object, gọi method, interface | OOP |
+| `nbody` | floating point, nested arrays, references | CPU |
+| `spectral_norm` | many calls to small functions, floating point | CPU |
+| `fannkuch` | integer arrays, permutations | CPU |
+| `mandelbrot` | pure floating-point loops, no allocation | CPU |
+| `binary_trees` | heavy allocation/deallocation, recursion, GC | Memory |
+| `hashmap` | associative arrays with string keys (counting by key) | Memory/hash |
+| `json` | `json_encode`/`json_decode` of API-style data | Library |
+| `strings` | string concatenation, `str_replace`, `explode`, `strtoupper` | Library |
+| `objects` | object creation, method calls, interfaces | OOP |
 
-Kích thước đầu vào nằm trong `benchmarks/workloads.json` (`full` ≈ 1–3 giây ở chế độ interpreter, `quick` cho CI). `tests/check-workloads.sh` kiểm tra 4 ngôn ngữ cho ra cùng kết quả.
+Input sizes are in `benchmarks/workloads.json` (`full` ≈ 1–3 seconds in interpreter mode, `quick` for CI). `tests/check-workloads.sh` checks that the 4 languages produce the same result.
 
-Tập **huấn luyện PGO** (`benchmarks/training/` + `Zend/micro_bench.php` + một phần PHPT) **tách biệt** với tập đo. Nhờ vậy kết quả PGO không bị "học thuộc" bài đo.
+The **PGO training** set (`benchmarks/training/` + `Zend/micro_bench.php` + part of the PHPTs) is **separate** from the benchmark set. This way the PGO results do not "memorize" the benchmarks.
 
-## 2. Cách đo (`scripts/bench.py`)
+## 2. How measurements are taken (`scripts/bench.py`)
 
-- Mỗi lần chạy là một tiến trình mới: `php -n` (không đọc php.ini của máy), `memory_limit=-1`.
-- Chế độ `interp`: OPcache bật, JIT tắt, tức là đo Zend VM. Chế độ `jit`: OPcache + `opcache.jit=tracing`, buffer 128M (chỉ PHP ≥ 8.0).
-- Warm-up 1 lần, sau đó **chạy xen kẽ** các đối thủ (A B C A B C …), mặc định 7 vòng. Nhờ vậy nhiễu của máy (nhiệt độ, tiến trình khác) ảnh hưởng đều cho tất cả.
-- Ghi lại: thời gian thực (wall time) của từng lần, **peak RSS** của tiến trình (qua `wait4`), stdout.
-- Báo cáo: median, min, max, độ lệch chuẩn, **CV** (hệ số biến thiên), và **khoảng tin cậy 95% bootstrap** của tỉ số median.
-  - ✔ = nhanh hơn có ý nghĩa thống kê, ✘ = chậm hơn có ý nghĩa, không dấu = chưa phân biệt được với nhiễu.
-- Nếu stdout của một đối thủ khác baseline, kết quả bị đánh dấu `INVALID` và **không được dùng**.
-- Tổng hợp: trung bình nhân (geometric mean) tốc độ trên mọi workload.
+- Each run is a new process: `php -n` (does not read the machine's php.ini), `memory_limit=-1`.
+- `interp` mode: OPcache on, JIT off, i.e. it measures the Zend VM. `jit` mode: OPcache + `opcache.jit=tracing`, 128M buffer (PHP ≥ 8.0 only).
+- 1 warm-up run, then the contenders are **interleaved** (A B C A B C …), 7 rounds by default. This way machine noise (temperature, other processes) affects all of them equally.
+- Recorded: the wall time of each run, the process's **peak RSS** (via `wait4`), stdout.
+- Reported: median, min, max, standard deviation, **CV** (coefficient of variation), and the **95% bootstrap confidence interval** of the median ratio.
+  - ✔ = statistically significantly faster, ✘ = significantly slower, no mark = not yet distinguishable from noise.
+- If a contender's stdout differs from the baseline, the result is marked `INVALID` and **is not used**.
+- Summary: the geometric mean of the speedup across all workloads.
 
-Mỗi báo cáo `results/<ngày>-.../summary.md` ghi đủ: CPU, số vCPU, RAM, OS, kernel, gcc, commit QHturbo, tag upstream, sha256 của binary, số vòng và warm-up. Từng lần đo (thời gian, RSS) nằm trong `raw/results.json`, file này được commit để kiểm tra lại được.
+Each report `results/<date>-.../summary.md` records everything: CPU, vCPU count, RAM, OS, kernel, gcc, QHturbo commit, upstream tag, binary sha256, number of rounds and warm-ups. Every individual measurement (time, RSS) is in `raw/results.json`; this file is committed so it can be re-checked.
 
-## 3. Kiểm tra A/A (độ nhiễu)
+## 3. A/A check (noise level)
 
-Khi `patches/<nhánh>/series` trống, `qhturbo` có **cùng mã nguồn** với `baseline`. So sánh hai bản này là phép thử A/A: chênh lệch đo được chính là mức nhiễu của máy. Bản vá nào có hiệu ứng nhỏ hơn mức nhiễu A/A thì coi như **chưa chứng minh**.
+When `patches/<branch>/series` is empty, `qhturbo` has **the same source code** as `baseline`. Comparing the two is an A/A test: the measured difference is the machine's noise level. A patch whose effect is smaller than the A/A noise is considered **not proven**.
 
-## 4. So sánh với ngôn ngữ khác (`bench.py cross`)
+## 4. Comparison with other languages (`bench.py cross`)
 
-- Cùng thuật toán, cùng dữ liệu, cùng output. Go được biên dịch trước (không tính thời gian biên dịch), các ngôn ngữ còn lại tính cả thời gian khởi động runtime.
-- Không dùng thư viện native đặc biệt (numpy, SIMD...) ở bất kỳ ngôn ngữ nào.
-- Đây là **benchmark CPU một luồng**. Không suy ra hiệu năng web/I/O từ đây. Web/API đo riêng ở Phase 5 (wrk/k6 với PHP-FPM).
+- Same algorithm, same data, same output. Go is compiled ahead of time (compilation time not counted); for the other languages, runtime start-up time is included.
+- No special native libraries (numpy, SIMD...) in any language.
+- This is a **single-threaded CPU benchmark**. Do not infer web/I/O performance from it. Web/API is measured separately in Phase 5 (wrk/k6 with PHP-FPM).
 
-## 5. Quy tắc diễn giải
+## 5. Interpretation rules
 
-1. Không công bố "nhanh hơn X%" nếu CI 95% chứa 1.0.
-2. Báo cáo cả workload chậm đi, không chỉ chọn workload đẹp.
-3. Benchmark chính thức chạy trên filesystem Linux (WSL: `~/QHTurbo-lab`, không phải ổ Windows dưới `/mnt/`).
-4. Máy ảo dùng chung (cloud) có nhiễu cao. CV > 5% thì tăng `--runs` hoặc đo lại trên máy riêng.
+1. Do not publish "X% faster" if the 95% CI contains 1.0.
+2. Report workloads that got slower too, not just the flattering ones.
+3. Official benchmarks run on a Linux filesystem (WSL: `~/QHTurbo-lab`, not a Windows drive under `/mnt/`).
+4. Shared virtual machines (cloud) are noisy. If CV > 5%, increase `--runs` or re-measure on a dedicated machine.

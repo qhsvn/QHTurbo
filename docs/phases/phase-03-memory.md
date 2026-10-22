@@ -1,24 +1,26 @@
-# PHASE 03 — Bộ nhớ và cấu trúc dữ liệu (`QHT-P03`)
+# PHASE 03 — Memory and data structures (`QHT-P03`)
 
-**Trạng thái:** `TODO`.
+**English** · [Tiếng Việt](phase-03-memory.vi.md)
 
-## Mục tiêu
+**Status:** `TODO`.
 
-Giảm cấp phát, copy và peak RSS ở workload thật mà không đổi hành vi PHP.
+## Goal
 
-## Công cụ đã có
+Reduce allocations, copies and peak RSS on real workloads without changing PHP behavior.
 
-- `bench.py` ghi **peak RSS** của mọi lần chạy (cột `RSS` trong báo cáo).
-- `binary_trees`, `hashmap`, `json`, `objects` là các workload nặng về bộ nhớ.
+## Existing tools
 
-## Việc cần làm
+- `bench.py` records the **peak RSS** of every run (the `RSS` column in reports).
+- `binary_trees`, `hashmap`, `json`, `objects` are the memory-heavy workloads.
 
-- [ ] Đo `memory_get_peak_usage()` song song với RSS cho từng workload.
-- [ ] Thử `USE_ZEND_ALLOC_HUGE_PAGES=1` (cấu hình runtime, không cần vá) và ghi kết quả.
-- [ ] Phân tích `zend_mm` (kích thước bin, chunk 2 MB), `HashTable` packed/hash, interned strings.
-- [ ] Mỗi thay đổi kiểm tra refcount, GC, exception, vòng đời request (FPM chạy nhiều request trên một worker).
-- [ ] ASan + valgrind cho mọi bản vá thuộc nhóm `QHT-MEM`.
+## To do
 
-## Điều kiện hoàn thành
+- [ ] Measure `memory_get_peak_usage()` alongside RSS for each workload.
+- [ ] Try `USE_ZEND_ALLOC_HUGE_PAGES=1` (runtime configuration, no patch needed) and record the results.
+- [ ] Analyze `zend_mm` (bin sizes, 2 MB chunks), `HashTable` packed/hash, interned strings.
+- [ ] For every change, check refcounting, GC, exceptions, and the request lifecycle (FPM runs many requests on one worker).
+- [ ] ASan + valgrind for every patch in the `QHT-MEM` group.
 
-Bản vá giảm RAM hoặc tăng tốc ở workload mục tiêu, có số đo trước/sau, PHPT không xấu đi.
+## Definition of done
+
+A patch that reduces RAM or improves speed on the target workloads, with before/after measurements, and PHPT not worse.

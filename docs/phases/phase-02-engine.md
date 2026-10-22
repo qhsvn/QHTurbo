@@ -1,36 +1,38 @@
-# PHASE 02 — Tối ưu Zend Engine (`QHT-P02`)
+# PHASE 02 — Zend Engine optimization (`QHT-P02`)
 
-**Trạng thái:** `TODO`. Chưa có bản vá mã nguồn nào được chấp nhận.
+**English** · [Tiếng Việt](phase-02-engine.vi.md)
 
-## Mục tiêu
+**Status:** `TODO`. No source patch has been accepted yet.
 
-Giảm chi phí thực thi opcode và gọi hàm trong Zend VM bằng **những bản vá nhỏ, có số đo**. Không đổi ngữ nghĩa, không đổi ABI.
+## Goal
 
-## Quy trình cho mỗi giả thuyết (`QHT-ENG-xxx`)
+Reduce the cost of opcode execution and function calls in the Zend VM through **small, measured patches**. No semantic changes, no ABI changes.
 
-1. **Profile trước** trên máy Linux có `perf`:
+## Process for each hypothesis (`QHT-ENG-xxx`)
+
+1. **Profile first** on a Linux machine with `perf`:
    ```bash
    perf record -g build/8.5/qhturbo/bin/php -n -d opcache.enable_cli=1 benchmarks/workloads/objects/main.php 3000000
    perf report --no-children | head -50
    ```
-   Ghi lại hàm hoặc handler opcode nóng nhất vào `logs/development.md`.
-2. **Viết giả thuyết** cụ thể, ví dụ: "handler `ZEND_INIT_METHOD_CALL` tốn X% vì ...; đổi Y sẽ giảm Z".
-3. Sửa trong `worktrees/8.5/qhturbo/`. Nếu đổi `Zend/zend_vm_def.h` thì chạy `php Zend/zend_vm_gen.php` để sinh lại `zend_vm_execute.h`.
-4. `scripts/build.sh qhturbo`, sau đó:
-   - `scripts/run-tests.sh qhturbo opcache` và `... jit` (số fail không được tăng so với baseline),
+   Record the hottest function or opcode handler in `logs/development.md`.
+2. **Write a concrete hypothesis**, for example: "handler `ZEND_INIT_METHOD_CALL` costs X% because ...; changing Y will reduce Z".
+3. Make the change in `worktrees/8.5/qhturbo/`. If `Zend/zend_vm_def.h` changes, run `php Zend/zend_vm_gen.php` to regenerate `zend_vm_execute.h`.
+4. `scripts/build.sh qhturbo`, then:
+   - `scripts/run-tests.sh qhturbo opcache` and `... jit` (the number of failures must not increase relative to baseline),
    - `python3 scripts/bench.py php --variants baseline,qhturbo --runs 15`.
-5. Có lợi rõ ràng (CI 95% không chứa 1.0) và không làm chậm workload khác quá mức nhiễu A/A thì:
-   `scripts/make-patch.sh qhturbo QHT-ENG-001-<tên>` rồi commit patch + báo cáo.
-6. Không có lợi thì ghi `NO-GO` vào `logs/development.md` kèm số đo, rồi reset worktree.
+5. If there is a clear gain (the 95% CI does not contain 1.0) and no other workload slows down by more than the A/A noise, then:
+   `scripts/make-patch.sh qhturbo QHT-ENG-001-<name>` and commit the patch + report.
+6. If there is no gain, record `NO-GO` in `logs/development.md` together with the measurements, then reset the worktree.
 
-## Ứng viên đã xác định (chưa thử)
+## Identified candidates (not yet tried)
 
-| ID | Ý tưởng | Rủi ro |
+| ID | Idea | Risk |
 |---|---|---|
-| QHT-ENG-001 | Kiểm tra lại chế độ VM (`--with-zend-vm=HYBRID` mặc định) và global register variables trên gcc mới | Thấp |
-| QHT-ENG-002 | Thử `-march=x86-64-v2/v3` cho bản phát hành theo đời CPU (máy chủ aaPanel hiện đại) | Trung bình: không chạy được trên CPU cũ |
-| QHT-ENG-003 | Đo chi phí `zend_call_function` cho callback (`array_map`, `usort`) và fast path cho closure không capture | Trung bình |
+| QHT-ENG-001 | Re-check the VM mode (`--with-zend-vm=HYBRID` by default) and global register variables on newer gcc | Low |
+| QHT-ENG-002 | Try `-march=x86-64-v2/v3` for releases targeted by CPU generation (modern aaPanel servers) | Medium: will not run on older CPUs |
+| QHT-ENG-003 | Measure the cost of `zend_call_function` for callbacks (`array_map`, `usort`) and a fast path for non-capturing closures | Medium |
 
-## Điều kiện hoàn thành
+## Definition of done
 
-Có ít nhất một bản vá đã review, PHPT không xấu đi, số đo lặp lại được và đã phân tích tác dụng phụ. Nếu không có bản vá nào có lợi thì ghi `NO-GO` kèm bằng chứng. Không báo thành công giả.
+At least one reviewed patch, PHPT not worse, measurements that are repeatable, and side effects analyzed. If no patch helps, record `NO-GO` with evidence. No false success reports.

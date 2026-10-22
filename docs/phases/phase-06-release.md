@@ -1,16 +1,18 @@
-# PHASE 06 — Tương thích, bảo mật, phát hành (`QHT-P06`)
+# PHASE 06 — Compatibility, security, release (`QHT-P06`)
 
-**Trạng thái:** `TODO`.
+**English** · [Tiếng Việt](phase-06-release.vi.md)
 
-## Việc cần làm
+**Status:** `TODO`.
 
-- [ ] PHPT đầy đủ ở 3 chế độ cho mọi nhánh phát hành, ghi pass/fail/skip so với baseline.
-- [ ] Test Composer + framework (Laravel, Symfony, WordPress) trên từng nhánh 7.4 → 8.5 mà ứng dụng dùng.
-- [ ] Ma trận ABI/extension (PECL: redis, imagick, swoole, xdebug) × OS × đời CPU.
-- [ ] ASan/UBSan, fuzzing, review bảo mật, đồng bộ bản vá upstream.
-- [ ] Build tái lập, SBOM, chuỗi phiên bản (`PHP_EXTRA_VERSION=-qhturbo1`), release notes.
-- [ ] Gói Linux cho staging + tài liệu build từ nguồn, nâng cấp và rollback.
+## To do
 
-## Điều kiện hoàn thành
+- [ ] Full PHPT suite in 3 modes for every released branch, recording pass/fail/skip relative to baseline.
+- [ ] Composer + framework tests (Laravel, Symfony, WordPress) on each branch 7.4 → 8.5 that the application uses.
+- [ ] ABI/extension matrix (PECL: redis, imagick, swoole, xdebug) × OS × CPU generation.
+- [ ] ASan/UBSan, fuzzing, security review, syncing upstream fixes.
+- [ ] Reproducible builds, SBOM, version string (`PHP_EXTRA_VERSION=-qhturbo1`), release notes.
+- [ ] Linux packages for staging + documentation for building from source, upgrading and rolling back.
 
-Bản RC đạt các cổng tương thích, bảo mật, benchmark, và đã kiểm tra quay lại PHP chính thức. Chưa đạt thì không phát hành `stable`.
+## Definition of done
+
+The RC passes the compatibility, security and benchmark gates, and going back to official PHP has been tested. Until then, no `stable` release.

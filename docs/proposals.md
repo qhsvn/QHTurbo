@@ -1,60 +1,62 @@
-# Đề xuất: làm PHP chạy tối ưu và tiện lợi hơn cho người dùng
+# Proposals: making PHP run better and more conveniently for users
 
-Các đề xuất dựa trên số đo của dự án (`logs/benchmarks.md`, `results/web/`), sắp theo **lợi ích thực tế / công sức**. Cột "Trạng thái" cho biết mục nào QHturbo đã có.
+**English** · [Tiếng Việt](proposals.vi.md)
 
-## A. Những điều số đo đã chứng minh
+These proposals are based on the project's measurements (`logs/benchmarks.md`, `results/web/`), ordered by **practical benefit / effort**. The "Status" column shows which items QHturbo already has.
 
-1. **Lợi ích lớn nhất của web PHP là bỏ chi phí khởi động mỗi request**, không phải tăng tốc Zend VM. Worker chạy lâu dài nhanh hơn FPM **7–8×** trên framework giả lập. PGO chỉ được ±3%, còn nâng 7.4 → 8.5 (không JIT) chỉ +5%.
-2. **I/O mới là nút thắt của ứng dụng thật.** FPM xử lý I/O bằng cách tăng số tiến trình (64 tiến trình: 939 req/s, 104 MiB), trong khi async I/O đạt 2.389 req/s với 56 MiB.
-3. **JIT** giúp code tính toán thuần PHP nhanh hơn 1,5–3,9×, gần như không giúp json/chuỗi/mảng. Chỉ bật khi đã đo bằng ứng dụng thật.
-4. PHP đã **nhanh hơn Python ~3×**, ngang hoặc nhanh hơn Node.js/Go ở mảng kết hợp và chuỗi, nhưng **chậm hơn nhiều lần ở tính toán số**. Muốn lấp khoảng cách đó phải đầu tư vào JIT/VM lâu dài (Phase 2–4).
+## A. What the measurements have proven
 
-## B. Đề xuất ưu tiên cao (làm trong 1–3 tháng)
+1. **The biggest win for web PHP is removing the per-request bootstrap cost**, not speeding up the Zend VM. A long-running worker is **7–8×** faster than FPM on a simulated framework. PGO only gave ±3%, and upgrading 7.4 → 8.5 (no JIT) only +5%.
+2. **I/O is the real bottleneck of real applications.** FPM handles I/O by adding processes (64 processes: 939 req/s, 104 MiB), while async I/O reaches 2,389 req/s with 56 MiB.
+3. **JIT** makes pure-PHP computational code 1.5–3.9× faster, and barely helps json/strings/arrays. Only enable it after measuring with the real application.
+4. PHP is already **~3× faster than Python**, on par with or faster than Node.js/Go on associative arrays and strings, but **many times slower at numeric computation**. Closing that gap requires long-term investment in the JIT/VM (Phase 2–4).
 
-| # | Đề xuất | Lợi ích | Trạng thái |
+## B. High-priority proposals (within 1–3 months)
+
+| # | Proposal | Benefit | Status |
 |---|---|---|---|
-| B1 | **Hai chế độ Compatible / Performance** với đường lui rõ ràng | Người dùng chọn giữa an toàn và tốc độ cho từng site | ✅ Đã có (`docs/modes/`) |
-| B2 | **`qht-doctor`**: kiểm tra cấu hình (OPcache, Xdebug, EOL, extension) và quét mã nguồn tìm rủi ro khi chuyển sang worker | Sửa được lỗi cấu hình phổ biến trong vài phút | ✅ Đã có |
-| B3 | **`fpm-tune`**: tính `pm.max_children` từ RAM và RSS thực tế | Tránh swap (nguyên nhân hay gặp nhất khiến site chậm) | ✅ Đã có |
-| B4 | **Driver MySQL/Redis async** cho Performance mode (mysqli `MYSQLI_ASYNC` + `mysqli_poll`, giao thức RESP qua socket async) | Cho phép `--concurrency > 1` với ứng dụng có DB, tận dụng hết lợi ích async | ✅ Đã có (`runtime/src/Redis`, `runtime/src/Mysql`): 1,7× so với 64 tiến trình FPM |
-| B5 | **Pool kết nối + kiểm tra transaction** giữa các request (rule R7) | Không mở lại kết nối mỗi request, không rò transaction | ✅ Đã có (`runtime/src/Pool`) |
-| B6 | **Adapter Laravel / Symfony** cho Performance mode (giống Laravel Octane: khởi động kernel một lần, reset container, auth, session sau mỗi request) | Đưa lợi ích 7× tới các framework phổ biến nhất | ✅ Đã có (`--framework=laravel\|symfony`): Laravel 13 nhanh hơn 6,7–14,6×, Symfony 8.1 nhanh hơn 6,3× |
-| B7 | **Plugin aaPanel**: chọn phiên bản QHturbo và chế độ Compatible/Performance cho từng site, rollback một nút bấm | Người không rành dòng lệnh cũng dùng được | ⏳ Đề xuất |
-| B8 | **Gói cài sẵn** (`.tar.gz` đã có, tiếp theo là `.deb` và kho apt) cho Ubuntu 22.04/24.04, Debian 12 | Không phải tự build (build mất 5–15 phút) | ◐ Có `scripts/package.sh` |
+| B1 | **Two modes, Compatible / Performance**, with a clear fallback path | Users choose between safety and speed per site | ✅ Done (`docs/modes/`) |
+| B2 | **`qht-doctor`**: checks configuration (OPcache, Xdebug, EOL, extensions) and scans source code for risks when moving to a worker | Fixes common configuration mistakes in minutes | ✅ Done |
+| B3 | **`fpm-tune`**: computes `pm.max_children` from actual RAM and RSS | Avoids swapping (the most common reason sites are slow) | ✅ Done |
+| B4 | **Async MySQL/Redis drivers** for Performance mode (mysqli `MYSQLI_ASYNC` + `mysqli_poll`, RESP protocol over an async socket) | Allows `--concurrency > 1` with database-backed apps, getting the full benefit of async | ✅ Done (`runtime/src/Redis`, `runtime/src/Mysql`): 1.7× vs 64 FPM processes |
+| B5 | **Connection pool + transaction checks** between requests (rule R7) | No reconnecting on every request, no leaked transactions | ✅ Done (`runtime/src/Pool`) |
+| B6 | **Laravel / Symfony adapters** for Performance mode (like Laravel Octane: boot the kernel once, reset the container, auth, session after each request) | Brings the 7× benefit to the most popular frameworks | ✅ Done (`--framework=laravel\|symfony`): Laravel 13 is 6.7–14.6× faster, Symfony 8.1 is 6.3× faster |
+| B7 | **aaPanel plugin**: choose the QHturbo version and Compatible/Performance mode per site, one-click rollback | Usable by people who are not comfortable with the command line | ⏳ Proposed |
+| B8 | **Prebuilt packages** (`.tar.gz` already exists, next are `.deb` and an apt repository) for Ubuntu 22.04/24.04, Debian 12 | No need to build yourself (a build takes 5–15 minutes) | ◐ `scripts/package.sh` exists |
 
-## C. Tiện lợi cho lập trình viên
+## C. Developer convenience
 
-| # | Đề xuất | Trạng thái |
+| # | Proposal | Status |
 |---|---|---|
-| C1 | Lệnh `qht` hợp nhất: `qht install 8.5`, `qht use 8.4`, `qht doctor`, `qht serve`, `qht bench` | ⏳ (hiện là các script riêng trong `scripts/`) |
-| C2 | Dev server tự reload khi file thay đổi (watch, rồi SIGHUP) | ⏳ |
-| C3 | Endpoint `/metrics` (Prometheus): RPS, độ trễ, RAM, độ trễ event loop, số worker bị tái tạo | ⏳ (`Loop::stats()` đã có) |
-| C4 | Sinh `preload.php` tự động từ danh sách file nóng của OPcache | ⏳ |
-| C5 | Upload `multipart/form-data` → `$_FILES` trong Performance mode | ✅ |
-| C6 | Mẫu GitHub Actions cho dự án người dùng: chạy test trên cả hai chế độ, kèm `--strict-state` | ◐ (CI của QHturbo làm mẫu) |
+| C1 | A unified `qht` command: `qht install 8.5`, `qht use 8.4`, `qht doctor`, `qht serve`, `qht bench` | ⏳ (currently separate scripts in `scripts/`) |
+| C2 | Dev server that auto-reloads when files change (watch, then SIGHUP) | ⏳ |
+| C3 | A `/metrics` endpoint (Prometheus): RPS, latency, RAM, event loop lag, number of recycled workers | ⏳ (`Loop::stats()` already exists) |
+| C4 | Automatically generate `preload.php` from OPcache's list of hot files | ⏳ |
+| C5 | `multipart/form-data` uploads → `$_FILES` in Performance mode | ✅ |
+| C6 | GitHub Actions template for users' projects: run tests in both modes, with `--strict-state` | ◐ (QHturbo's CI serves as the template) |
 
-## D. Hiệu năng sâu (Phase 2–4, dài hạn, cần máy đo riêng)
+## D. Deep performance work (Phase 2–4, long-term, needs a dedicated benchmark machine)
 
-| # | Đề xuất | Ghi chú |
+| # | Proposal | Notes |
 |---|---|---|
-| D1 | Profile bằng `perf` trên workload web thật (FPM và worker), chọn hàm nóng để vá Zend Engine (`QHT-ENG-xxx`) | Máy đám mây hiện tại quá nhiễu (±8%) |
-| D2 | PGO lần 3: huấn luyện bằng **request web thật**, thử clang | 2 lần PGO trước là NO-GO |
-| D3 | Viết parser HTTP bằng C extension cho Performance mode (hiện là PHP thuần) | Đo trước xem parser chiếm bao nhiêu % thời gian |
-| D4 | Theo dõi khả năng worker mode của chính PHP upstream và FrankenPHP; tránh tự làm lại những gì upstream đã có | |
+| D1 | Profile with `perf` on real web workloads (FPM and worker), pick hot functions to patch in the Zend Engine (`QHT-ENG-xxx`) | The current cloud machine is too noisy (±8%) |
+| D2 | Third PGO attempt: train on **real web requests**, try clang | The 2 previous PGO attempts were NO-GO |
+| D3 | Write the HTTP parser as a C extension for Performance mode (currently pure PHP) | First measure what percentage of time the parser takes |
+| D4 | Follow the worker-mode capabilities of PHP upstream itself and FrankenPHP; avoid redoing what upstream already has | |
 
-## E. Vận hành và bảo mật
+## E. Operations and security
 
-1. **Nâng cấp khỏi 7.4/8.0/8.1** (đã EOL). QHturbo Compatible giúp chạy song song bản mới trên cùng máy, chuyển từng site và giữ đường lui.
-2. OpenSSL 1.1.1 dùng cho 7.4/8.0 cũng đã EOL: chỉ dùng tạm thời.
-3. Production: staging, rồi canary, rồi chuyển toàn bộ. Luôn giữ PHP-FPM gốc để rollback bằng một lần `nginx -s reload`.
-4. Performance mode: bật `--strict-state` trên staging; production đặt `--max-requests` và `--memory-limit` để tự phục hồi khi có rò rỉ.
+1. **Upgrade off 7.4/8.0/8.1** (already EOL). QHturbo Compatible makes it possible to run a newer version side by side on the same machine, migrate site by site and keep a fallback path.
+2. OpenSSL 1.1.1, used for 7.4/8.0, is also EOL: use it only temporarily.
+3. Production: staging, then canary, then full cutover. Always keep the original PHP-FPM so you can roll back with a single `nginx -s reload`.
+4. Performance mode: enable `--strict-state` on staging; in production set `--max-requests` and `--memory-limit` so it self-recovers from leaks.
 
-## F. Hướng dẫn chọn nhanh
+## F. Quick selection guide
 
 ```
-Site WordPress / code cũ / không sửa được code  ->  Compatible (PHP-FPM)
-API / ứng dụng viết mới, framework khởi động nặng  ->  Performance, --concurrency=1
-Gọi nhiều API/dịch vụ nội bộ trong mỗi request     ->  Performance, --concurrency>1 (I/O async)
-Tính toán nặng bằng PHP                          ->  bật JIT (sau khi đo), cân nhắc viết phần đó bằng Go/Rust
-Còn chạy PHP 7.4/8.0                             ->  Compatible + lộ trình nâng cấp lên 8.3+
+WordPress site / legacy code / code you can't modify  ->  Compatible (PHP-FPM)
+API / newly written app, framework with heavy boot    ->  Performance, --concurrency=1
+Many API/internal service calls in each request       ->  Performance, --concurrency>1 (async I/O)
+Heavy computation in PHP                              ->  enable JIT (after measuring), consider writing that part in Go/Rust
+Still running PHP 7.4/8.0                             ->  Compatible + an upgrade path to 8.3+
 ```
