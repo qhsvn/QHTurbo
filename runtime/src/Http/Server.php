@@ -35,6 +35,8 @@ final class Server
     private array $slotQueue = [];
     /** @var array<int, resource> */
     private array $connections = [];
+    /** @var array<int, true> keep-alive connections waiting for their next request */
+    private array $idle = [];
     /** @var \Closure(Request): mixed */
     private \Closure $handler;
     /** @var \Closure(): void|null */
@@ -98,9 +100,17 @@ final class Server
     private function serveConnection($conn, string $peer): void
     {
         $buffer = '';
+        $first = true;
         try {
-            while (!$this->draining || $buffer !== '') {
+            // A freshly accepted connection always gets its request served,
+            // even if draining started between accept() and the first read.
+            while ($first || !$this->draining || $buffer !== '') {
+                if (!$first && $buffer === '') {
+                    $this->idle[(int) $conn] = true;
+                }
+                $first = false;
                 $request = $this->readRequest($conn, $buffer, $peer);
+                unset($this->idle[(int) $conn]);
                 if ($request === null) {
                     break;
                 }
@@ -124,7 +134,7 @@ final class Server
         } catch (\Throwable $e) {
             ($this->log)('connection error: ' . $e->getMessage());
         } finally {
-            unset($this->connections[(int) $conn]);
+            unset($this->connections[(int) $conn], $this->idle[(int) $conn]);
             @fclose($conn);
             $this->checkDrained();
         }
@@ -273,8 +283,12 @@ final class Server
             return;
         }
         // Idle keep-alive connections: close them so their fibers finish.
-        foreach ($this->connections as $conn) {
-            @stream_socket_shutdown($conn, STREAM_SHUT_RDWR);
+        // New connections still waiting for their first request are left
+        // alone; they are served (or time out after keepAliveTimeout).
+        foreach ($this->idle as $id => $_) {
+            if (isset($this->connections[$id])) {
+                @stream_socket_shutdown($this->connections[$id], STREAM_SHUT_RDWR);
+            }
         }
         if ($this->connections) {
             return; // their fibers call checkDrained() again when they exit

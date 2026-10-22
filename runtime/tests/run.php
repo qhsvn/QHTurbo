@@ -176,7 +176,7 @@ function http(int $port, string $raw, &$sock = null): array
     }
     [$headText] = explode("\r\n\r\n", $head, 2);
     $lines = explode("\r\n", $headText);
-    $status = (int) explode(' ', $lines[0])[1];
+    $status = (int) (explode(' ', $lines[0])[1] ?? 0); // 0 = connection closed without a response
     $headers = [];
     foreach (array_slice($lines, 1) as $l) {
         [$k, $v] = explode(':', $l, 2);

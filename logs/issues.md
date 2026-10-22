@@ -47,3 +47,10 @@
 - **Hiện tượng:** tải liên tục 30 s (~26.000 req/s), tổng PSS của 4 worker tăng tuyến tính 129 → 315 MiB.
 - **Nguyên nhân:** mỗi `read()` có timeout tạo một timer (5–30 s). Timer bị huỷ chỉ được xoá khỏi bảng, còn phần tử trong `SplPriorityQueue` nằm lại tới khi đến hạn, khoảng 750.000 phần tử.
 - **Sửa:** `Loop::cancel()` dựng lại hàng đợi khi số timer đã huỷ > 1024 và > số timer còn sống. Thêm `Loop::stats()` và test (50.000 timeout bị huỷ, hàng đợi ≤ 1.100). Đo lại: 54 MiB, phẳng suốt 30 s.
+
+## ISSUE-006 — Race khi worker dừng: kết nối vừa accept bị đóng không phản hồi (đã sửa)
+
+- **Ngày:** 2026-10-22
+- **Phát hiện:** CI (GitHub Actions) báo lỗi bộ test runtime trên PHP 8.3/8.4/8.5. Tái hiện được ở máy build khi bật OPcache + JIT cho CLI (giống cấu hình mặc định của `setup-php`): test reload SIGHUP có 1 request bị đóng mà không có phản hồi.
+- **Nguyên nhân:** (1) nếu worker bắt đầu dừng giữa lúc `accept()` và lần đọc đầu tiên, vòng lặp phục vụ thoát ngay; (2) khi dừng, worker đóng **mọi** kết nối đang chờ, kể cả kết nối mới chưa gửi request.
+- **Sửa:** kết nối mới luôn được phục vụ request đầu tiên; khi dừng chỉ đóng kết nối keep-alive **đang rảnh**. Test chạy lặp 16 lần (có và không có JIT) đều pass.
