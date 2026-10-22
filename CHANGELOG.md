@@ -6,6 +6,11 @@ Format follows [Keep a Changelog](https://keepachangelog.com/). Every measuremen
 
 ## [Unreleased]
 
+### Added — DirectAdmin (2026-10-22)
+- `scripts/directadmin.sh`: QHturbo on DirectAdmin (Apache / nginx_apache), one domain at a time with automatic rollback. The domain's user gets a QHturbo PHP-FPM pool that runs as that user, copied from DirectAdmin's pool (same open_basedir and limits); the switch is a marked block in the domain's custom httpd file (`.cust_httpd`) using `SetHandler`, which an experiment confirmed wins over DirectAdmin's `AddHandler` in either order; other custom code is kept.
+- DirectAdmin plugin (`plugins/directadmin/qhturbo.tar.gz`) and `scripts/panel-agent.sh`: plugin pages run as the admin's user, so they queue requests that a root agent (systemd path unit) runs after checking the requester is a DirectAdmin admin and validating every value. Tests: `tests/directadmin-sim.sh`, 32/32 on a simulated DirectAdmin with a real Apache.
+- `scripts/panel-lib.sh`: build, service and FPM helpers shared by `aapanel.sh` and `directadmin.sh`.
+
 ### Added — aaPanel plugin (2026-10-22)
 - `plugins/aapanel/qhturbo`: aaPanel plugin (zip for App Store import, or copy from the command line). PHP versions tab (install, copy extensions, check, rebuild, remove), Sites tab (switch to QHturbo or back, per site), live task log; English and Vietnamese. It runs the same scripts as the command line; long tasks run detached in the background. Tested against the simulated aaPanel (`tests/aapanel-plugin.py`, 13 checks). DirectAdmin and cPanel plugins are planned.
 - `aapanel.sh versions|sites`: tab-separated lists for the plugin; FPM counts as running only if its process is alive (not just a leftover socket).

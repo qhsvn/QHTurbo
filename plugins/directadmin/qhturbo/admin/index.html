@@ -1,0 +1,232 @@
+#!/usr/local/bin/php -n
+<?php
+// QHturbo PHP plugin page for DirectAdmin admins. DirectAdmin runs it as the
+// admin's own Linux user, so it never changes the system itself: it reads
+// the lists the QHturbo agent publishes, and drops request files for the
+// agent (scripts/panel-agent.sh, running as root) to carry out.
+
+$SPOOL = getenv('QHT_SPOOL') ?: '/var/spool/qhturbo';
+$STATE = getenv('QHT_STATE') ?: '/var/lib/qhturbo';
+$JOBS = getenv('QHT_JOBLOG') ?: '/var/log/qhturbo/jobs';
+$TOKEN_FILE = getenv('QHT_TOKEN_FILE') ?: dirname(__DIR__) . '/data/token';
+$SELF = '/CMD_PLUGINS_ADMIN/qhturbo/index.html';
+$VERSIONS = ['7.4', '8.0', '8.1', '8.2', '8.3', '8.4', '8.5'];
+$ACTIONS = ['install', 'sync-ext', 'uninstall', 'check', 'enable', 'disable', 'refresh'];
+
+function tsv($file, $cols)
+{
+    $rows = [];
+    foreach (@file($file, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES) ?: [] as $line) {
+        $f = explode("\t", $line);
+        if (count($f) === $cols) {
+            $rows[] = $f;
+        }
+    }
+    return $rows;
+}
+
+$q = [];
+parse_str((string) getenv('QUERY_STRING'), $q);
+$token = trim((string) @file_get_contents($TOKEN_FILE));
+$flash = ['', ''];
+
+// ---------------------------------------------------------- an action --
+if (isset($q['action'])) {
+    $action = (string) $q['action'];
+    $php = (string) ($q['php'] ?? '');
+    $domain = strtolower((string) ($q['domain'] ?? ''));
+    if ($token === '' || !hash_equals($token, (string) ($q['token'] ?? ''))) {
+        $flash = ['error', 'Invalid or missing token: reload the page and try again.'];
+    } elseif (!in_array($action, $ACTIONS, true)) {
+        $flash = ['error', 'Unknown action.'];
+    } elseif ($php !== '' && !in_array($php, $VERSIONS, true)) {
+        $flash = ['error', 'Unknown PHP version.'];
+    } elseif (in_array($action, ['enable', 'disable'], true)
+        && !preg_match('/^[a-z0-9]([a-z0-9.-]{0,251}[a-z0-9])?$/', $domain)) {
+        $flash = ['error', 'Invalid domain.'];
+    } elseif (!is_dir($SPOOL) || !is_writable($SPOOL)) {
+        $flash = ['error', "The QHturbo agent is not set up ($SPOOL). Run as root: /opt/qhturbo-src/scripts/panel-agent.sh setup directadmin"];
+    } else {
+        $id = date('YmdHis') . '-' . bin2hex(random_bytes(4));
+        $body = "action=$action\n" . ($php !== '' ? "php=$php\n" : '') . ($domain !== '' ? "domain=$domain\n" : '');
+        $tmp = "$SPOOL/.$id.tmp";
+        if (@file_put_contents($tmp, $body) !== false && @rename($tmp, "$SPOOL/$id.req")) {
+            $flash = ['ok', $action === 'refresh' ? 'Refreshing the lists…' : 'Queued. Progress is shown below.'];
+        } else {
+            @unlink($tmp);
+            $flash = ['error', "Could not write a request into $SPOOL."];
+        }
+    }
+}
+
+// ------------------------------------------------------------- state --
+// (No arrow functions or typed properties: DirectAdmin's PHP may be 7.x.)
+$versions = array_map(function ($f) {
+    return ['branch' => $f[0], 'installed' => $f[1] === '1', 'running' => $f[2] === '1',
+        'version' => $f[3] === '-' ? '' : $f[3], 'da' => $f[4] === '1'];
+}, tsv("$STATE/versions.tsv", 5));
+$sites = array_map(function ($f) {
+    return ['domain' => $f[0], 'user' => $f[1], 'php' => $f[2], 'qhturbo' => $f[3] === '-' ? '' : $f[3]];
+}, tsv("$STATE/sites.tsv", 4));
+$current = tsv("$STATE/current", 3)[0] ?? null;
+$jobId = $current[0] ?? trim((string) @file_get_contents("$STATE/last-job"));
+$log = '';
+if (preg_match('/^[A-Za-z0-9-]{1,64}$/', $jobId)) {
+    $log = (string) @file_get_contents("$JOBS/$jobId.log");
+    $log = preg_replace('/\x1b\[[0-9;]*m/', '', $log);
+    $lines = explode("\n", $log);
+    $log = implode("\n", array_slice($lines, -300));
+}
+$pending = count(glob("$SPOOL/*.req") ?: []);
+$data = [
+    'self' => $SELF, 'token' => $token, 'flash' => $flash, 'versions' => $versions, 'sites' => $sites,
+    'job' => ['running' => $current !== null, 'title' => $current[2] ?? '', 'by' => $current[1] ?? '', 'log' => $log,
+        'exit' => preg_match('/\[exit (\d+)\]\s*$/', $log, $m) ? (int) $m[1] : null],
+    'pending' => $pending, 'agent' => is_dir($SPOOL) && is_file("$STATE/versions.tsv"),
+    'revision' => trim((string) @file_get_contents("$STATE/revision")),
+];
+$json = json_encode($data, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_UNESCAPED_UNICODE);
+?>
+<style>
+  #qht { font-size: 13px; color: #333; max-width: 1100px; }
+  #qht h2 { font-size: 18px; margin: 4px 0 6px; }
+  #qht h3 { font-size: 15px; margin: 22px 0 8px; }
+  #qht .note { background: #f6f9fb; border-left: 3px solid #0a6c78; padding: 8px 12px; margin: 8px 0; color: #555; line-height: 1.6; }
+  #qht .flash { padding: 8px 12px; margin: 8px 0; border-radius: 3px; }
+  #qht .flash.ok { background: #e1f3e8; color: #1d7340; }
+  #qht .flash.error { background: #fbe4e4; color: #a12020; }
+  #qht table { border-collapse: collapse; width: 100%; }
+  #qht th, #qht td { text-align: left; padding: 7px 8px; border-bottom: 1px solid #e5e5e5; vertical-align: middle; }
+  #qht th { font-size: 12px; color: #777; text-transform: uppercase; letter-spacing: .04em; }
+  #qht td.act { text-align: right; white-space: nowrap; }
+  #qht .tag { display: inline-block; padding: 1px 8px; border-radius: 10px; font-size: 12px; background: #f0f0f0; color: #555; }
+  #qht .tag.on { background: #e1f3e8; color: #1d7340; }
+  #qht .tag.off { background: #fbf0d9; color: #8a5a00; }
+  #qht .tag.qht { background: #e1f1f3; color: #0a6c78; }
+  #qht a.btn, #qht button.btn { display: inline-block; padding: 3px 10px; margin-left: 4px; border: 1px solid #c8c8c8; border-radius: 3px; background: #fff; color: #333; text-decoration: none; font-size: 12px; cursor: pointer; }
+  #qht a.btn.go, #qht button.btn.go { background: #0a6c78; border-color: #0a6c78; color: #fff; }
+  #qht a.btn.danger { color: #a12020; border-color: #e0b4b4; }
+  #qht select { height: 24px; }
+  #qht pre.log { background: #0f1922; color: #d7e2ea; max-height: 420px; overflow: auto; padding: 10px 12px; font: 12px/1.55 Menlo, Consolas, monospace; white-space: pre-wrap; border-radius: 4px; }
+  #qht .muted { color: #888; }
+  #qht .bar { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+  #qht .bar .grow { flex: 1; }
+</style>
+<div id="qht">
+  <div class="bar">
+    <h2 class="grow">QHturbo PHP</h2>
+    <span class="muted" id="qht-rev"></span>
+    <span><a href="#" data-lang="en">EN</a> · <a href="#" data-lang="vi">VI</a></span>
+    <a class="btn" id="qht-refresh" data-i18n="refresh">Refresh lists</a>
+  </div>
+  <div id="qht-flash"></div>
+  <div class="note" data-i18n="intro">PHP 7.4–8.5 built from the official source, running beside DirectAdmin's PHP (which is never changed). Each domain is switched on its own; its user gets a PHP-FPM pool in QHturbo that runs as that user, with the same limits as DirectAdmin's pool. A domain that answers with an error after the switch is switched back automatically.</div>
+
+  <h3 data-i18n="h_versions">PHP versions</h3>
+  <table><thead><tr><th>PHP</th><th data-i18n="status">Status</th><th data-i18n="in_da">In DirectAdmin</th><th></th></tr></thead>
+    <tbody id="qht-versions"></tbody></table>
+
+  <h3 data-i18n="h_domains">Domains</h3>
+  <table><thead><tr><th data-i18n="domain">Domain</th><th data-i18n="user">User</th><th data-i18n="runs_on">Runs on</th><th></th></tr></thead>
+    <tbody id="qht-sites"></tbody></table>
+
+  <h3 data-i18n="h_task">Task</h3>
+  <p id="qht-job" class="muted"></p>
+  <pre class="log" id="qht-log"></pre>
+  <p class="muted"><span data-i18n="cli">Same actions from SSH:</span> <code>/opt/qhturbo-src/scripts/directadmin.sh check|install|enable|disable|status</code> ·
+    <a href="https://github.com/qhsvn/QHTurbo/blob/main/plugins/README.md" target="_blank" rel="noopener" data-i18n="docs">Documentation</a></p>
+</div>
+<script>
+(function () {
+  var D = <?= $json ?>;
+  var T = {
+    en: { refresh: 'Refresh lists', h_versions: 'PHP versions', h_domains: 'Domains', h_task: 'Task', status: 'Status', in_da: 'In DirectAdmin',
+      domain: 'Domain', user: 'User', runs_on: 'Runs on', cli: 'Same actions from SSH:', docs: 'Documentation',
+      intro: "PHP 7.4–8.5 built from the official source, running beside DirectAdmin's PHP (which is never changed). Each domain is switched on its own; its user gets a PHP-FPM pool in QHturbo that runs as that user, with the same limits as DirectAdmin's pool. A domain that answers with an error after the switch is switched back automatically.",
+      not_installed: 'Not installed', running: 'Running', stopped: 'Installed, stopped', yes: 'yes', no: '—', install: 'Install', rebuild: 'Rebuild',
+      sync: 'Copy extensions', check: 'Check', remove: 'Remove', da_php: 'DirectAdmin PHP', qht_php: 'QHturbo PHP', switch_to: 'Switch', back: 'Back to DirectAdmin PHP',
+      none_installed: 'Install a version first', no_domains: 'No domains yet (or the lists were not published: Refresh lists).', running_job: 'Running: ', last_job: 'Last task: ',
+      failed: ' — failed', done: ' — done', queued: ' requests waiting', no_job: 'No task yet.', no_agent: 'The QHturbo agent is not set up. Run as root: /opt/qhturbo-src/scripts/panel-agent.sh setup directadmin',
+      c_install: 'Build and install QHturbo PHP {v}? This takes 10–40 minutes and uses a lot of CPU.', c_switch: 'Switch {d} to QHturbo PHP {v}?', c_back: "Switch {d} back to DirectAdmin's PHP?",
+      c_remove: 'Remove QHturbo PHP {v}? Its domains go back to DirectAdmin PHP first.' },
+    vi: { refresh: 'Làm mới danh sách', h_versions: 'Phiên bản PHP', h_domains: 'Domain', h_task: 'Tác vụ', status: 'Trạng thái', in_da: 'Có trong DirectAdmin',
+      domain: 'Domain', user: 'User', runs_on: 'Đang chạy', cli: 'Thao tác tương tự qua SSH:', docs: 'Tài liệu',
+      intro: 'PHP 7.4–8.5 build từ mã nguồn chính thức, chạy song song với PHP của DirectAdmin (PHP DirectAdmin không bị thay đổi). Mỗi domain được chuyển riêng; user của domain có một pool PHP-FPM trong QHturbo chạy bằng chính user đó, cùng giới hạn như pool của DirectAdmin. Domain báo lỗi sau khi chuyển sẽ được tự chuyển về.',
+      not_installed: 'Chưa cài', running: 'Đang chạy', stopped: 'Đã cài, đang dừng', yes: 'có', no: '—', install: 'Cài đặt', rebuild: 'Build lại',
+      sync: 'Chép extension', check: 'Kiểm tra', remove: 'Gỡ', da_php: 'PHP DirectAdmin', qht_php: 'PHP QHturbo', switch_to: 'Chuyển', back: 'Về PHP DirectAdmin',
+      none_installed: 'Hãy cài một phiên bản trước', no_domains: 'Chưa có domain (hoặc danh sách chưa được công bố: bấm Làm mới danh sách).', running_job: 'Đang chạy: ', last_job: 'Tác vụ gần nhất: ',
+      failed: ' — thất bại', done: ' — xong', queued: ' yêu cầu đang chờ', no_job: 'Chưa có tác vụ.', no_agent: 'Chưa cài tác tử QHturbo. Chạy bằng root: /opt/qhturbo-src/scripts/panel-agent.sh setup directadmin',
+      c_install: 'Build và cài PHP QHturbo {v}? Mất 10–40 phút và dùng nhiều CPU.', c_switch: 'Chuyển {d} sang PHP QHturbo {v}?', c_back: 'Chuyển {d} về PHP của DirectAdmin?',
+      c_remove: 'Gỡ PHP QHturbo {v}? Các domain đang dùng sẽ được chuyển về PHP DirectAdmin trước.' }
+  };
+  var lang = 'en';
+  try { lang = localStorage.getItem('qht-lang') || ((navigator.language || '').toLowerCase().indexOf('vi') === 0 ? 'vi' : 'en'); } catch (e) {}
+  function t(k, v) { var s = (T[lang] || T.en)[k] || T.en[k] || k; for (var x in (v || {})) s = s.split('{' + x + '}').join(v[x]); return s; }
+  function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return '&#' + c.charCodeAt(0) + ';'; }); }
+  function url(p) { var u = D.self + '?token=' + encodeURIComponent(D.token); for (var k in p) u += '&' + k + '=' + encodeURIComponent(p[k]); return u; }
+  function link(label, p, cls, confirmText) {
+    return '<a class="btn ' + (cls || '') + '" href="' + esc(url(p)) + '"' + (confirmText ? ' data-confirm="' + esc(confirmText) + '"' : '') + '>' + esc(label) + '</a>';
+  }
+  function render() {
+    document.querySelectorAll('#qht [data-i18n]').forEach(function (e) { e.textContent = t(e.getAttribute('data-i18n')); });
+    document.getElementById('qht-refresh').setAttribute('href', url({ action: 'refresh' }));
+    document.getElementById('qht-rev').textContent = D.revision ? 'scripts ' + D.revision : '';
+    var fl = D.flash[0] ? '<div class="flash ' + esc(D.flash[0]) + '">' + esc(D.flash[1]) + '</div>' : '';
+    if (!D.agent) fl += '<div class="flash error">' + esc(t('no_agent')) + '</div>';
+    document.getElementById('qht-flash').innerHTML = fl;
+
+    document.getElementById('qht-versions').innerHTML = D.versions.map(function (v) {
+      var st = v.installed ? '<span class="tag ' + (v.running ? 'on">' + t('running') : 'off">' + t('stopped')) + ' · ' + esc(v.version) + '</span>' : '<span class="tag">' + t('not_installed') + '</span>';
+      var a = v.installed
+        ? link(t('sync'), { action: 'sync-ext', php: v.branch }) + link(t('check'), { action: 'check', php: v.branch }) +
+          link(t('rebuild'), { action: 'install', php: v.branch }, '', t('c_install', { v: v.branch })) +
+          link(t('remove'), { action: 'uninstall', php: v.branch }, 'danger', t('c_remove', { v: v.branch }))
+        : link(t('install'), { action: 'install', php: v.branch }, 'go', t('c_install', { v: v.branch }));
+      return '<tr><td><b>' + esc(v.branch) + '</b></td><td>' + st + '</td><td>' + (v.da ? t('yes') : t('no')) + '</td><td class="act">' + a + '</td></tr>';
+    }).join('');
+
+    var inst = D.versions.filter(function (v) { return v.installed; }).map(function (v) { return v.branch; });
+    var rows = D.sites.map(function (s) {
+      var on = s.qhturbo ? '<span class="tag qht">' + t('qht_php') + ' ' + esc(s.qhturbo) + '</span> <span class="muted">(' + t('da_php') + ' ' + esc(s.php) + ')</span>'
+                         : '<span class="tag">' + t('da_php') + ' ' + esc(s.php || '?') + '</span>';
+      var a;
+      if (s.qhturbo) a = link(t('back'), { action: 'disable', domain: s.domain }, '', t('c_back', { d: s.domain }));
+      else if (!inst.length) a = '<span class="muted">' + t('none_installed') + '</span>';
+      else {
+        var pick = inst.indexOf(s.php) >= 0 ? s.php : inst[inst.length - 1];
+        a = '<select data-domain="' + esc(s.domain) + '">' + inst.map(function (b) { return '<option' + (b === pick ? ' selected' : '') + '>' + esc(b) + '</option>'; }).join('') +
+            '</select><button class="btn go" data-switch="' + esc(s.domain) + '">' + t('switch_to') + '</button>';
+      }
+      return '<tr><td>' + esc(s.domain) + '</td><td>' + esc(s.user) + '</td><td>' + on + '</td><td class="act">' + a + '</td></tr>';
+    });
+    document.getElementById('qht-sites').innerHTML = rows.length ? rows.join('') : '<tr><td colspan="4" class="muted">' + t('no_domains') + '</td></tr>';
+
+    var j = D.job, head;
+    if (j.running) head = t('running_job') + j.title + ' (' + j.by + ')';
+    else if (j.log) head = t('last_job') + (j.log.split('\n')[0] || '').replace(/^\$ /, '') + (j.exit === 0 ? t('done') : j.exit == null ? '' : t('failed'));
+    else head = t('no_job');
+    if (D.pending) head += ' · ' + D.pending + t('queued');
+    document.getElementById('qht-job').textContent = head;
+    var box = document.getElementById('qht-log');
+    box.textContent = j.log || '';
+    box.style.display = j.log ? '' : 'none';
+    box.scrollTop = box.scrollHeight;
+  }
+  document.getElementById('qht').addEventListener('click', function (e) {
+    var a = e.target.closest('a[data-confirm]');
+    if (a && !confirm(a.getAttribute('data-confirm'))) { e.preventDefault(); return; }
+    var l = e.target.closest('a[data-lang]');
+    if (l) { e.preventDefault(); lang = l.getAttribute('data-lang'); try { localStorage.setItem('qht-lang', lang); } catch (x) {} render(); return; }
+    var b = e.target.closest('button[data-switch]');
+    if (b) {
+      var d = b.getAttribute('data-switch'), v = b.previousElementSibling.value;
+      if (confirm(t('c_switch', { d: d, v: v }))) location.href = url({ action: 'enable', domain: d, php: v });
+    }
+  });
+  render();
+  // After an action, drop it from the address bar; while work is queued or
+  // running, reload to follow it.
+  if (location.search.indexOf('action=') >= 0 && history.replaceState) history.replaceState(null, '', D.self);
+  if (D.job.running || D.pending) setTimeout(function () { location.href = D.self; }, 3000);
+})();
+</script>

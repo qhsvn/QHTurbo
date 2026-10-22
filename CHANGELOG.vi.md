@@ -6,6 +6,11 @@
 
 ## [Unreleased]
 
+### Added — DirectAdmin (2026-10-22)
+- `scripts/directadmin.sh`: QHturbo trên DirectAdmin (Apache / nginx_apache), từng domain một, tự rollback. User của domain có một pool PHP-FPM QHturbo chạy bằng chính user đó, chép từ pool của DirectAdmin (cùng open_basedir và giới hạn); việc chuyển là một khối có đánh dấu trong file httpd tuỳ chỉnh của domain (`.cust_httpd`) dùng `SetHandler`, đã thí nghiệm xác nhận thắng `AddHandler` của DirectAdmin dù đặt trước hay sau; cấu hình tuỳ chỉnh khác được giữ nguyên.
+- Plugin DirectAdmin (`plugins/directadmin/qhturbo.tar.gz`) và `scripts/panel-agent.sh`: trang plugin chạy bằng user của admin nên chỉ xếp yêu cầu vào hàng đợi; tác tử root (systemd path unit) chạy yêu cầu sau khi xác nhận người gửi là admin DirectAdmin và kiểm tra từng giá trị. Test: `tests/directadmin-sim.sh`, 32/32 trên DirectAdmin mô phỏng với Apache thật.
+- `scripts/panel-lib.sh`: các hàm build, service, FPM dùng chung cho `aapanel.sh` và `directadmin.sh`.
+
 ### Added — plugin aaPanel (2026-10-22)
 - `plugins/aapanel/qhturbo`: plugin aaPanel (file zip để Import trong App Store, hoặc chép bằng dòng lệnh). Thẻ Phiên bản PHP (cài, chép extension, kiểm tra, build lại, gỡ), thẻ Site (chuyển sang QHturbo hoặc quay lại, từng site), nhật ký tác vụ trực tiếp; tiếng Anh và tiếng Việt. Plugin chạy đúng các script dòng lệnh; tác vụ dài chạy nền, tách khỏi panel. Đã test trên aaPanel mô phỏng (`tests/aapanel-plugin.py`, 13 kiểm tra). Plugin DirectAdmin và cPanel đang lên kế hoạch.
 - `aapanel.sh versions|sites`: danh sách phân cách bằng tab cho plugin; FPM chỉ được tính là đang chạy khi tiến trình còn sống (không chỉ dựa vào file socket còn sót).

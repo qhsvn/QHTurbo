@@ -67,6 +67,9 @@ esac
 VHOSTS="$PANEL/vhost/${WEB:-nginx}"
 APACHE_ORIG_DEFAULT="proxy:unix:/tmp/php-cgi-$TAG.sock|fcgi://"
 
+# shellcheck source=scripts/panel-lib.sh
+source "$QHT_ROOT/scripts/panel-lib.sh"
+
 need_root() { [[ $EUID -eq 0 ]] || die "run as root (sudo)"; }
 need_web() {
   [[ -n "$WEB" ]] && return 0
@@ -87,12 +90,6 @@ web_reload() {
   sleep 1
 }
 
-# Extension names as install-ext.sh takes them ("ionCube Loader" -> ioncube);
-# warnings that php -m prints on stdout are dropped.
-ext_list() {
-  "$1" -m 2>/dev/null | grep -v '^\[' | grep -v '^$' | tr 'A-Z' 'a-z' | grep -vE 'warning|on line [0-9]' \
-    | sed -E 's/^.*ioncube.*$/ioncube/; s/^zend opcache$/opcache/' | sort -u
-}
 missing_exts() { # aaPanel PHP tag (e.g. 84) -> extensions it has that QHturbo lacks
   local panel_php="$ROOT/www/server/php/$1/bin/php"
   [[ -x "$panel_php" && -x "$PREFIX/bin/php" ]] || return 0
@@ -215,24 +212,6 @@ do_check() {
 }
 
 # ---------------------------------------------------------------- install --
-install_deps() {
-  if command -v apt-get > /dev/null; then
-    log "installing build dependencies (apt)"
-    DEBIAN_FRONTEND=noninteractive apt-get update -q
-    DEBIAN_FRONTEND=noninteractive apt-get install -y -q git build-essential autoconf bison re2c pkg-config python3 \
-      libxml2-dev libssl-dev libsqlite3-dev zlib1g-dev libcurl4-openssl-dev libzip-dev libonig-dev libicu-dev \
-      libsodium-dev libpng-dev libjpeg-dev libfreetype-dev libgmp-dev libreadline-dev
-  elif command -v dnf > /dev/null; then
-    log "installing build dependencies (dnf; needs EPEL + CRB/PowerTools)"
-    dnf install -y epel-release || true
-    dnf config-manager --set-enabled crb 2>/dev/null || dnf config-manager --set-enabled powertools 2>/dev/null || true
-    dnf install -y git gcc gcc-c++ make autoconf bison re2c pkgconf python3 libxml2-devel openssl-devel \
-      sqlite-devel zlib-devel libcurl-devel libzip-devel oniguruma-devel libicu-devel libsodium-devel \
-      libpng-devel libjpeg-turbo-devel freetype-devel gmp-devel readline-devel
-  else
-    die "unsupported package manager: install the build dependencies listed in docs/modes/compatible.md"
-  fi
-}
 
 write_include() {
   # Copy aaPanel's own enable-php-XX.conf (keeps pathinfo/fastcgi settings)
@@ -301,43 +280,13 @@ sync_aapanel_ini() {
   fi
 }
 
-start_service() {
-  if (( SYSTEMD )); then
-    cp "$PREFIX/share/qhturbo/systemd/$SERVICE.service" /etc/systemd/system/
-    systemctl daemon-reload
-    systemctl enable --now "$SERVICE"
-    systemctl restart "$SERVICE"
-  else
-    warn "systemd not running: starting php-fpm directly (it will not start on boot)"
-    mkdir -p /run/qhturbo /var/log/qhturbo
-    [[ -f "/run/qhturbo/php$TAG-fpm.pid" ]] && kill "$(cat "/run/qhturbo/php$TAG-fpm.pid")" 2>/dev/null && sleep 1
-    "$PREFIX/sbin/php-fpm" --fpm-config "$PREFIX/etc/php-fpm.conf"
-  fi
-  for _ in $(seq 20); do [[ -S "$SOCK" ]] && break; sleep 0.5; done
-  [[ -S "$SOCK" ]] || die "php-fpm did not create $SOCK; see /var/log/qhturbo/php$TAG-fpm.log"
-  log "PHP-FPM running: $SOCK"
-}
 
 do_install() {
   need_root
   do_check || warn "continuing despite the warnings above"
   need_web  # before the 10-40 minute build, not after
-  [[ "${SKIP_DEPS:-0}" == 1 ]] || install_deps
-  local mem_mb jobs
-  mem_mb="$(free -m | awk '/Mem:/{print $2}')"
-  # About 1.5 GB per compiler job (intl/ICU and the Zend VM are big).
-  jobs=$(( mem_mb / 1500 )); (( jobs < 1 )) && jobs=1; (( jobs > $(nproc) )) && jobs=$(nproc)
-  export JOBS="${JOBS:-$jobs}" QHT_PHP="$PHPV"
-  mkdir -p "$QHT_LAB"
-  log "building PHP $PHPV in $QHT_LAB with $JOBS job(s); this takes 10-40 minutes"
-  "$QHT_ROOT/scripts/bootstrap.sh"
-  if [[ "$PHPV" == 7.* || "$PHPV" == 8.0 ]]; then "$QHT_ROOT/scripts/deps-openssl11.sh"; fi
-  QHT_PROFILE=full "$QHT_ROOT/scripts/build.sh" baseline
-  "$QHT_ROOT/scripts/install.sh" --user=www --group=www
+  build_and_install www www
   sync_aapanel_ini
-  # php-fpm -t opens the error log and checks the pid directory: create them
-  # first (the systemd unit only creates them when the service starts).
-  mkdir -p /run/qhturbo /var/log/qhturbo
   "$PREFIX/sbin/php-fpm" -t
   start_service
   if [[ "$WEB" == nginx ]]; then
@@ -464,12 +413,6 @@ do_status() {
   done
 }
 
-# PHP-FPM really running (a socket file alone may be left over from a crash).
-fpm_alive() { # tag
-  local pid
-  pid="$(cat "/run/qhturbo/php$1-fpm.pid" 2>/dev/null || true)"
-  [[ -S "/run/qhturbo/php$1-fpm.sock" && -n "$pid" ]] && kill -0 "$pid" 2>/dev/null
-}
 
 # Tab-separated, one line per supported PHP branch:
 #   branch  installed(0|1)  fpm_running(0|1)  php_version  aapanel_php(0|1)

@@ -12,8 +12,8 @@ jobs:
       - uses: actions/checkout@v4
       - name: Shell syntax + shellcheck
         run: |
-          for f in scripts/*.sh tests/*.sh plugins/*.sh plugins/*/*/*.sh; do bash -n "$f"; done
-          shellcheck -S warning -x scripts/*.sh tests/*.sh plugins/*.sh plugins/*/*/*.sh
+          for f in scripts/*.sh tests/*.sh plugins/*.sh plugins/*/*/*.sh plugins/*/*/scripts/*.sh; do bash -n "$f"; done
+          shellcheck -S warning -x scripts/*.sh tests/*.sh plugins/*.sh plugins/*/*/*.sh plugins/*/*/scripts/*.sh
       - name: Python syntax
         run: python3 -m py_compile scripts/*.py plugins/aapanel/qhturbo/*.py tests/*.py
       - name: Plugin package matches its sources
@@ -37,7 +37,7 @@ jobs:
       - uses: actions/setup-go@v5
         with: { go-version: 'stable' }
       - name: Lint PHP workloads, training scripts and qht-doctor
-        run: for f in benchmarks/workloads/*/main.php benchmarks/training/*.php scripts/qht-doctor.php; do php -l "$f"; done
+        run: for f in benchmarks/workloads/*/main.php benchmarks/training/*.php scripts/qht-doctor.php plugins/directadmin/qhturbo/admin/index.html; do php -l "$f"; done
       - name: Same output in PHP / Python / Node.js / Go
         run: tests/check-workloads.sh "$(command -v php)"
       - name: qht-doctor runs (exit 0 = ok, 1 = findings, anything else = crash)
