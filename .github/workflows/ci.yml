@@ -68,6 +68,7 @@ jobs:
     env:
       QHT_TEST_REDIS: redis://127.0.0.1:6379/15
       QHT_TEST_MYSQL: mysql://qht:qhtpass@127.0.0.1:3306/qht
+      QHT_TEST_REQUIRE_SERVERS: '1'
     steps:
       - uses: actions/checkout@v4
       - uses: shivammathur/setup-php@v2

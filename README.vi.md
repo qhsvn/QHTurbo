@@ -5,7 +5,7 @@
 QHturbo giúp ứng dụng PHP chạy nhanh hơn, **có số đo kiểm chứng và tái lập được**, cho **PHP 7.4 đến 8.5**. Dự án build từ mã nguồn PHP chính thức (`php-src`), cài **song song** với PHP đang có (không ghi đè), và có hai cách chạy:
 
 - **QHturbo Compatible:** PHP-FPM chuẩn. Chạy WordPress, Laravel, Composer và code cũ **không cần sửa code**.
-- **QHturbo Performance:** worker chạy lâu dài, event loop, async I/O. **Nhiều hơn 7–8× request/giây** so với PHP-FPM trong benchmark, cho ứng dụng tuân thủ vài quy tắc về trạng thái.
+- **QHturbo Performance:** worker chạy lâu dài, event loop, async I/O, Redis/MySQL không chặn. Chạy **ứng dụng Laravel và Symfony không cần sửa code**, đạt **6–15× request/giây** so với PHP-FPM trong benchmark.
 
 > **Trạng thái (22/10/2026):** đã xong nền tảng, hai chế độ chạy, tích hợp aaPanel và bộ công cụ, đều đã kiểm thử. Bản thân binary PHP chưa nhanh hơn bản gốc: PGO đã thử 2 lần (NO-GO) và chưa có bản vá Zend Engine. Tốc độ hiện tại đến từ **cách chạy PHP** (worker, async I/O) và cấu hình. Số đo lấy trên VM đám mây dùng chung (nhiễu khoảng ±8%). Xem [PROJECT_STATUS.md](PROJECT_STATUS.md).
 
@@ -28,6 +28,9 @@ QHturbo giúp ứng dụng PHP chạy nhanh hơn, **có số đo kiểm chứng 
 - **HTTP/1.1 server:** keep-alive, giới hạn số request đồng thời mỗi worker, giới hạn kích thước request. Chạy sau nginx.
 - **Supervisor:** nhiều tiến trình; tái tạo worker sau N request hoặc khi vượt RAM; **reload lần lượt không rơi request** (`SIGHUP`); dừng êm; tự giãn nhịp khi worker crash liên tục.
 - **Bảo vệ trạng thái** giữa các request: hook reset (`ResetInterface`); xoá biến global bị rò; khôi phục ini và output buffer; phát hiện static property và RAM tăng dần; chế độ `--strict-state` cho staging; `--superglobals` cho code cũ.
+- **Client Redis async** (RESP2, pipeline, AUTH/SELECT) và **client MySQL/MariaDB async** (query async của mysqlnd, tham số `?` kể cả danh sách `IN (?)`, transaction, timeout). Cả hai dùng **pool kết nối có giới hạn** cho mỗi worker, và không bao giờ trả lại kết nối còn transaction đang mở.
+- **Adapter Laravel và Symfony** (đã test trên Laravel 13 và Symfony 8.1; viết cho Laravel 9+ / Symfony 5.4+): `qhturbo-serve /đường/dẫn/app --framework=laravel`. Framework khởi động một lần. Sau mỗi request, adapter dọn user đăng nhập, session, cookie, scoped instance, transaction DB, config, locale… (Laravel), hoặc reset các service `kernel.reset` (Symfony).
+- Upload `multipart/form-data` (thành `$_FILES` / `UploadedFile`), header nhiều giá trị như nhiều `Set-Cookie`.
 
 ### Tích hợp aaPanel
 - `scripts/aapanel.sh`: `check` → `install` → `enable <site>` → `disable <site>` / `status` / `sync-ini` / `uninstall`.
@@ -50,8 +53,9 @@ QHturbo giúp ứng dụng PHP chạy nhanh hơn, **có số đo kiểm chứng 
 | Cách chạy | nginx → PHP-FPM | nginx → `qhturbo-serve` (worker chạy lâu dài, event loop, async I/O) |
 | PHP | 7.4 → 8.5 | 8.1 → 8.5 (Fiber) |
 | Sửa code | **Không** | Tuân thủ [quy tắc trạng thái](docs/modes/performance.md) (có công cụ quét và chế độ kiểm tra nghiêm) |
-| Thông lượng (framework giả lập, 4 vCPU) | khoảng 3.000 req/s | **khoảng 21.000–23.600 req/s (7–8×)** |
-| Request chờ I/O (3 lần gọi backend × 20 ms) | 939 req/s, 104 MiB (64 tiến trình FPM) | **2.389 req/s, 56 MiB** |
+| Laravel 13 (4 vCPU, cấu hình production) | 288–353 req/s | **1.924–5.150 req/s (6,7–14,6×)** |
+| Symfony 8.1 | 1.737 req/s | **11.160 req/s (6,3×)** |
+| 3 query MySQL × 20 ms mỗi request | 1.011 req/s (64 tiến trình FPM) | **1.724 req/s** (MySQL async) |
 
 ## Kết quả đã đo được
 
@@ -61,8 +65,10 @@ Toàn bộ số liệu và cách đo: [logs/benchmarks.md](logs/benchmarks.md), 
 
 | Thay đổi | Tốc độ | Ghi chú |
 |---|---|---|
-| Worker chạy lâu dài thay cho PHP-FPM (Performance) | **7–8×** | Bỏ chi phí khởi động framework ở mỗi request |
-| Async I/O thay cho FPM chặn | **2,5×**, dùng một nửa RAM | Khi request phải chờ dịch vụ khác |
+| Worker chạy lâu dài thay cho PHP-FPM, ứng dụng Laravel 13 thật | **6,7–14,6×** | Bỏ chi phí khởi động framework ở mỗi request |
+| Tương tự với Symfony 8.1 / framework giả lập | **6,3× / 7–8×** | |
+| MySQL async thay cho PDO chặn ở 64 tiến trình FPM | **1,7×** | Khi request phải chờ database |
+| Gọi HTTP async thay cho FPM chặn | **2,5×**, dùng một nửa RAM | Khi request phải chờ dịch vụ khác |
 | Bật JIT trên 8.5 (bài CPU) | 1,56× | Lớn với code tính toán, gần 0 với JSON/chuỗi/mảng |
 | Nâng 7.4 → 8.5 (chỉ interpreter) | 1,05× | Ít hơn nhiều người nghĩ; có JIT thì 1,69× |
 | Binary tối ưu bằng PGO | +0,3% / −3,2% | **NO-GO**: không có lợi ổn định |
@@ -138,6 +144,8 @@ return function (Request $request) use ($config): Response|array {
 
 ```bash
 php runtime/bin/qhturbo-serve app.php --port=8080 --workers=4 --strict-state
+# dự án Laravel hoặc Symfony có sẵn, không cần sửa:
+php runtime/bin/qhturbo-serve /var/www/laravel --framework=laravel --workers=4
 ```
 
 Chi tiết, tuỳ chọn và quy tắc trạng thái: [docs/modes/performance.md](docs/modes/performance.md).
@@ -168,7 +176,7 @@ config/build.env   cờ configure (profile minimal / full)
 config/modes/      cấu hình mẫu cho Compatible (FPM) và Performance (worker)
 config/ini/        profile OPcache / JIT / preload
 patches/<nhánh>/   chuỗi bản vá mã nguồn (hiện trống: chưa có bản vá engine)
-runtime/           QHturbo Performance: event loop, async, HTTP server, worker, bảo vệ trạng thái (16 test)
+runtime/           QHturbo Performance: event loop, async, HTTP server, worker, bảo vệ trạng thái, Redis/MySQL, Laravel/Symfony
 scripts/           bootstrap, build, install, package, aapanel, install-ext, run-tests, bench.py, qht-doctor, fpm-tune
 benchmarks/        bài đo CPU bằng PHP/Python/JS/Go, benchmark web, tập huấn luyện PGO
 tests/             kiểm tra output giữa các ngôn ngữ, mô phỏng aaPanel end-to-end

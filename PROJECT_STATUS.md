@@ -22,9 +22,10 @@ Máy build/đo: VM đám mây (Intel Xeon 2.8 GHz, 4 vCPU, 15 GiB, Ubuntu 24.04.
 | QHT-WEB-001 **QHturbo Compatible**: build `full` + FPM, install/package, cấu hình | DONE (8.5, 7.4) | `docs/modes/compatible.md` | App cũ chạy giống hệt trên 7.4 và 8.5 qua nginx → FPM; Composer + Laravel 13 (test pass) trên 8.5; Composer + Guzzle HTTPS trên 7.4 |
 | QHT-WEB-002 **QHturbo Performance**: runtime worker/event loop/async/quy tắc trạng thái | DONE (bản đầu) | `runtime/`, 16 test; CI xanh trên 8.1 → 8.5 (3 lần liên tiếp) | 7–8× FPM ở bài CPU; 2,5× ở bài I/O với một nửa RAM (`results/web/`) |
 | QHT-WEB-003 `qht-doctor`, `fpm-tune` | DONE | `scripts/` | doctor chạy được từ 7.4 trở lên |
-| QHT-WEB-004 Driver MySQL/Redis async, pool kết nối | TODO | `docs/proposals.md` B4–B5 | Cần để dùng `--concurrency>1` với ứng dụng có DB |
+| QHT-WEB-004 Driver MySQL/Redis async, pool kết nối | DONE | `runtime/src/{Pool,Redis,Mysql}`, 8 test với Redis 7.0/MariaDB 10.11 (CI: Redis 7, MySQL 8.4) | MySQL I/O: 1.724 req/s so với 1.011 của FPM ×64 |
 | QHT-WEB-006 Tích hợp aaPanel (`scripts/aapanel.sh`, `install-ext.sh`) | DONE (mô phỏng) | `tests/aapanel-sim.sh` 12/12, `docs/aapanel.md` | Chưa chạy trên aaPanel thật |
-| QHT-WEB-005 Adapter Laravel/Symfony, plugin giao diện aaPanel, gói .deb | TODO | B6–B8 | |
+| QHT-WEB-005 Adapter Laravel/Symfony | DONE | `runtime/src/Bridge`, `runtime/tests/frameworks.php` 6/6 | Laravel 13: 6,7–14,6×; Symfony 8.1: 6,3× so với FPM |
+| QHT-WEB-007 Plugin giao diện aaPanel, gói .deb | TODO | B7–B8 | |
 | QHT-P02 Bản vá Zend Engine | TODO | — | Cần `perf` trên máy riêng |
 | QHT-P03 Bộ nhớ | TODO | — | |
 | QHT-P06 Phát hành | TODO | — | |

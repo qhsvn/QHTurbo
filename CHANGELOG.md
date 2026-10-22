@@ -4,6 +4,21 @@
 
 ## [Unreleased]
 
+### Added — Redis/MySQL async và adapter framework (2026-10-22)
+- `runtime/src/Pool`: pool kết nối có giới hạn, dùng chung cho các request của một worker (hàng đợi khi pool hết chỗ, loại kết nối hỏng, timeout khi lấy kết nối).
+- `runtime/src/Redis`: client Redis không chặn (RESP2, pipeline, AUTH/SELECT, mọi lệnh qua `__call`).
+- `runtime/src/Mysql`: client MySQL/MariaDB không chặn (mysqlnd `MYSQLI_ASYNC` + `mysqli_poll`); tham số `?` được escape, kể cả `IN (?)`; `transaction()`; rollback transaction còn mở khi trả kết nối (R7); timeout query; tự thử lại khi gặp "gone away".
+- Runtime: upload `multipart/form-data` (`$_FILES`, file tạm tự xoá), header nhiều giá trị (`Set-Cookie`), `--max-body`.
+- Adapter `--framework=laravel|symfony` (`runtime/src/Bridge`). Laravel: khởi động một lần, dọn trạng thái kiểu Octane, cảnh báo khi dùng driver `array`. Symfony: reset service `kernel.reset`, đặt `APP_RUNTIME_MODE`.
+- Test: 24 test runtime (thêm 8 test Redis/MySQL với server thật), 6 test framework trên Laravel 13 và Symfony 8.1 (`runtime/tests/frameworks.php`). CI có job Redis 7 + MySQL 8.4 và job framework.
+- Benchmark: `benchmarks/web/framework.sh` (Laravel/Symfony thật), `benchmarks/web/db/run.sh` (MySQL I/O).
+
+### Fixed — trong quá trình làm adapter
+- Symfony chạy trong worker CLI in chi tiết exception vào response 500 ở prod (bộ hiển thị lỗi CLI) → adapter đặt `APP_RUNTIME_MODE=web=1&worker=1` (ISSUE-009).
+- File upload trong Laravel bị `isValid() = false` → tạo `Illuminate\Http\UploadedFile` ở chế độ test (ISSUE-010).
+- Lỗi trong hook reset không còn làm mất response.
+- Hàm async được bảo vệ khỏi khai báo trùng khi runtime được nạp từ hai đường dẫn.
+
 ### Added — aaPanel và tài liệu (2026-10-22)
 - `scripts/aapanel.sh`: `check`, `install`, `enable <site>` (từng site, tự rollback khi `nginx -t` lỗi hoặc site trả 5xx), `disable`, `status`, `sync-ini` (chép `disable_functions` và giới hạn từ php.ini của aaPanel; worker giữ lại `pcntl_*`), `uninstall`. Lệnh `check` liệt kê extension còn thiếu so với PHP aaPanel.
 - `scripts/install-ext.sh`: cài extension PECL; nếu PECL không truy cập được thì dùng bản phát hành ổn định trên GitHub (đã thử redis 6.3.0 trên 8.5, apcu 5.1.28 trên 7.4).

@@ -111,3 +111,28 @@ Báo cáo: `results/web/2026-10-22-php8.5-modes.md` (`benchmarks/web/run.sh`). P
 - Cấu hình Performance cho FPM (`validate_timestamps=0` + JIT) chỉ thay đổi −5% đến +6%, tức là cấu hình không phải yếu tố chính.
 - Lần chạy đầu bị loại vì ISSUE-004. Phép đo RAM theo RSS đếm trùng OPcache dùng chung, nên đã chuyển sang PSS.
 - Kiểm tra rò rỉ: 30 s tải liên tục (775.525 request), PSS 54 MiB không đổi (sau khi sửa ISSUE-005).
+
+## 2026-10-22 — Laravel 13 / Symfony 8.1 thật: FPM so với worker
+
+Báo cáo: `results/web/2026-10-22-laravel13-fpm-vs-workers.md`, `results/web/2026-10-22-symfony81-fpm-vs-workers.md` (`benchmarks/web/framework.sh`). 4 vCPU, PHP 8.5.12, FPM `pm=static` 8 tiến trình, worker 4 tiến trình concurrency 1, wrk -c32 10 s.
+
+| Route | FPM | Worker | × |
+|---|---|---|---|
+| Laravel `/up` | 353 | 5.150 | 14,6 |
+| Laravel `/` (Blade, session Redis) | 288 | 1.924 | 6,7 |
+| Laravel route JSON (web, session Redis) | 319 | 2.295 | 7,2 |
+| Symfony `/qht/hello` | 1.737 | 10.958 | 6,3 |
+| Symfony `/qht/json` | 1.776 | 11.160 | 6,3 |
+
+Cấu hình Laravel: production, `artisan optimize`, session và cache bằng Redis (phpredis). Lần đo đầu (session file) bị loại, xem ISSUE-012. RAM: Laravel 98–101 MiB (FPM) so với 123–151 MiB (worker).
+
+## 2026-10-22 — MySQL I/O: PDO chặn so với client async
+
+Báo cáo: `results/web/2026-10-22-mysql-io-async.md` (`benchmarks/web/db/run.sh`). Mỗi request 3 × `SELECT SLEEP(0.02)`, MariaDB 10.11 trên cùng máy, wrk -c128.
+
+| Cấu hình | req/s | p99 |
+|---|---|---|
+| FPM ×4 + PDO | 51 (457 timeout) | 2 s |
+| FPM ×64 + PDO | 1.011 | 163 ms |
+| Worker ×4 + PDO, concurrency 1 | 51 (300 timeout) | 2 s |
+| Worker ×4 + MySQL async, concurrency 64 | **1.724** | **115 ms** |

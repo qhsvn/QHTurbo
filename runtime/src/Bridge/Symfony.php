@@ -8,7 +8,7 @@ use QHTurbo\Runtime\Http\Request;
 use QHTurbo\Runtime\Http\Response;
 
 /**
- * Runs a Symfony (5.4-7.x) application in QHturbo Performance mode.
+ * Runs a Symfony application (tested on 8.1; written for 5.4+) in QHturbo Performance mode.
  *
  *   qhturbo-serve /var/www/app --framework=symfony --workers=4
  *

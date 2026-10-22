@@ -112,7 +112,16 @@ test('connect to a closed port fails', function (): void {
 // --------------------------------------------------- redis / mysql ----
 // Need servers: QHT_TEST_REDIS (default redis://127.0.0.1:6379/15) and
 // QHT_TEST_MYSQL (default mysql://qht:qhtpass@127.0.0.1:3306/qht).
-// Skipped (not failed) when the server is unreachable.
+// Skipped (not failed) when the server is unreachable, unless
+// QHT_TEST_REQUIRE_SERVERS=1 (CI), where a missing server is a failure.
+
+function skipOrFail(string $why): never
+{
+    if (getenv('QHT_TEST_REQUIRE_SERVERS')) {
+        throw new RuntimeException("$why (QHT_TEST_REQUIRE_SERVERS is set)");
+    }
+    throw new Skip($why);
+}
 
 function redisOrSkip(int $pool = 4): QHTurbo\Runtime\Redis\Client
 {
@@ -121,7 +130,7 @@ function redisOrSkip(int $pool = 4): QHTurbo\Runtime\Redis\Client
     try {
         await(async(fn () => $client->ping()));
     } catch (Throwable $e) {
-        throw new Skip("no Redis at $uri");
+        skipOrFail("no Redis at $uri: " . $e->getMessage());
     }
     return $client;
 }
@@ -135,7 +144,7 @@ function mysqlOrSkip(int $pool = 4, float $queryTimeout = 30.0, ?Closure $log = 
     try {
         await(async(fn () => $client->query('SELECT 1')));
     } catch (Throwable $e) {
-        throw new Skip('no MySQL: ' . $e->getMessage());
+        skipOrFail('no MySQL: ' . $e->getMessage());
     }
     return $client;
 }

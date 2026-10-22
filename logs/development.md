@@ -43,3 +43,12 @@ Mỗi thay đổi một mục, theo mẫu trong `docs/KE-HOACH-GOC.md` §6.2. Gi
 - **Kiểm chứng Compatible:** build 8.5 `full` (51 module), `install.sh` vào `/opt/qhturbo/8.5`, `php-fpm -t` OK. nginx → FPM chạy app cũ (session, cookie, header, upload, SQLite, intl, gd, openssl, sodium). Composer 2.8 trên PHP QHturbo cài Laravel 13.38 (hơn 100 package). Laravel qua FPM trả 200, `artisan test` 2/2.
 - **Kiểm chứng Performance:** 16 test (PHP 8.5.12 và 8.3.6). Benchmark web: 7–8× ở bài CPU, 2,5× ở bài I/O với một nửa RAM. Phát hiện và sửa 2 lỗi nhờ benchmark (ISSUE-004, ISSUE-005).
 - **Quyết định:** KEEP. Bước tiếp theo theo `docs/proposals.md`: driver MySQL/Redis async, adapter Laravel/Symfony, plugin aaPanel.
+
+## 2026-10-22 11:00 — QHT-WEB-004/005 Redis/MySQL async và adapter Laravel/Symfony
+
+- **Yêu cầu:** làm mục 1 (Async MySQL/Redis) và mục 2 (Adapter Laravel/Symfony) trong `docs/proposals.md`.
+- **Thiết kế MySQL:** dùng `MYSQLI_ASYNC` + `mysqli_poll` thay vì tự viết giao thức MySQL. mysqlnd lo xác thực (kể cả `caching_sha2_password`), TLS và charset. Đổi lại phải poll mỗi 0,5 ms khi có query đang chạy (không poll khi rảnh).
+- **Thiết kế adapter:** chuyển request qua HttpFoundation. Laravel: dọn trạng thái kiểu Octane trên một application dùng chung (không clone). Symfony: dựa vào `kernel.reset` có sẵn.
+- **Kiểm chứng:** 24 test runtime và 6 test framework pass. Đo tải: Laravel 6,7–14,6×, Symfony 6,3×, MySQL async 1,7× so với FPM ×64. Kiểm tra rò rỉ Laravel (20.000 request): 2 byte/request.
+- **Lỗi tìm ra và đã sửa:** ISSUE-009 (Symfony lộ chi tiết lỗi), ISSUE-010 (upload Laravel), ISSUE-011 (driver `array`), ISSUE-012 (cách đo).
+- **Quyết định:** KEEP.

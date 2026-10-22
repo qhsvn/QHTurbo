@@ -70,3 +70,27 @@
 - **Ngày:** 2026-10-22
 - **Phát hiện:** khi thử tích hợp aaPanel. aaPanel chặn `pcntl_*` trong php.ini; chạy `qhturbo-serve` với php.ini đó thì chế độ một tiến trình crash (`Call to undefined function pcntl_signal()`), còn chế độ nhiều worker báo sai là "thiếu extension pcntl".
 - **Sửa:** kiểm tra từng hàm cần dùng. Chế độ một tiến trình vẫn chạy (kèm cảnh báo: SIGTERM dừng ngay, không chờ request xong). Chế độ nhiều worker báo rõ hàm nào bị `disable_functions` chặn và cách dùng `performance.d`. Có test mới; `scripts/aapanel.sh` tự tạo `performance.d/05-from-aapanel.ini` bỏ `pcntl_*` cho worker.
+
+## ISSUE-009 — Symfony trong worker lộ chi tiết exception ở prod (đã sửa)
+
+- **Ngày:** 2026-10-22
+- **Phát hiện:** test `symfony: ... safe 500`. Response 500 chứa dump `RuntimeException {#125 #message: "secret detail" ...}` dù `APP_ENV=prod`, `APP_DEBUG=0`.
+- **Nguyên nhân:** Symfony chọn bộ hiển thị lỗi theo `kernel.runtime_mode`; khi không có `APP_RUNTIME_MODE`, nó suy ra từ `PHP_SAPI` (`cli`), nên dùng `CliErrorRenderer`.
+- **Sửa:** adapter đặt `APP_RUNTIME_MODE=web=1&worker=1` trước khi boot kernel (giống symfony/runtime và FrankenPHP).
+
+## ISSUE-010 — Upload trong Laravel có `isValid() = false` (đã sửa)
+
+- **Nguyên nhân:** Laravel chuyển `UploadedFile` của Symfony sang class của nó bằng `createFromBase()` mà không giữ chế độ test, nên `is_uploaded_file()` từ chối file tạm của worker.
+- **Sửa:** adapter tạo luôn `Illuminate\Http\UploadedFile` ở chế độ test.
+
+## ISSUE-011 — "Rò rỉ" bộ nhớ Laravel với driver `array` (xử lý bằng cảnh báo)
+
+- **Phát hiện:** `StateGuard` báo RAM tăng dần (khoảng 700 byte/request). Duyệt toàn bộ đồ thị object thì thấy `ArraySessionHandler->storage` giữ mọi session trong RAM của worker.
+- **Kết luận:** đúng bản chất của driver `array` (dành cho test), không phải lỗi adapter. Với `file`/`redis`: tăng khoảng 2 byte/request qua 20.000 request.
+- **Xử lý:** adapter cảnh báo khi khởi động nếu `session.driver` hoặc `cache.default` là `array`.
+
+## ISSUE-012 — Benchmark Laravel sai do thư mục session phình to (đã xử lý trong cách đo)
+
+- **Hiện tượng:** lần đo đầu, cả FPM và worker chỉ đạt khoảng 100–300 req/s, worker còn chậm hơn FPM.
+- **Nguyên nhân:** 43.942 file session (175 MB) do benchmark tạo ra; Laravel định kỳ quét cả thư mục để dọn session cũ, nên lần chạy sau chậm hơn lần chạy trước.
+- **Xử lý:** dọn thư mục, dùng Redis cho session/cache ở cả hai chế độ. Số đo cũ bị loại.

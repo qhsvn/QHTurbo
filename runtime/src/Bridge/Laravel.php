@@ -9,7 +9,7 @@ use QHTurbo\Runtime\Http\Response;
 use QHTurbo\Runtime\State\ResetInterface;
 
 /**
- * Runs a Laravel (9-13) application in QHturbo Performance mode.
+ * Runs a Laravel application (tested on 13; written for 9+) in QHturbo Performance mode.
  *
  *   qhturbo-serve /var/www/app --framework=laravel --workers=4
  *

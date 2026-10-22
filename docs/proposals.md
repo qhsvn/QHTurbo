@@ -16,9 +16,9 @@ Các đề xuất dựa trên số đo của dự án (`logs/benchmarks.md`, `re
 | B1 | **Hai chế độ Compatible / Performance** với đường lui rõ ràng | Người dùng chọn giữa an toàn và tốc độ cho từng site | ✅ Đã có (`docs/modes/`) |
 | B2 | **`qht-doctor`**: kiểm tra cấu hình (OPcache, Xdebug, EOL, extension) và quét mã nguồn tìm rủi ro khi chuyển sang worker | Sửa được lỗi cấu hình phổ biến trong vài phút | ✅ Đã có |
 | B3 | **`fpm-tune`**: tính `pm.max_children` từ RAM và RSS thực tế | Tránh swap (nguyên nhân hay gặp nhất khiến site chậm) | ✅ Đã có |
-| B4 | **Driver MySQL/Redis async** cho Performance mode (mysqli `MYSQLI_ASYNC` + `mysqli_poll`, giao thức RESP qua socket async) | Cho phép `--concurrency > 1` với ứng dụng có DB, tận dụng hết lợi ích async | ⏳ Đề xuất |
-| B5 | **Pool kết nối + kiểm tra transaction** giữa các request (rule R7) | Không mở lại kết nối mỗi request, không rò transaction | ⏳ Đề xuất |
-| B6 | **Adapter Laravel / Symfony** cho Performance mode (giống Laravel Octane: khởi động kernel một lần, reset container, auth, session sau mỗi request) | Đưa lợi ích 7× tới các framework phổ biến nhất | ⏳ Đề xuất |
+| B4 | **Driver MySQL/Redis async** cho Performance mode (mysqli `MYSQLI_ASYNC` + `mysqli_poll`, giao thức RESP qua socket async) | Cho phép `--concurrency > 1` với ứng dụng có DB, tận dụng hết lợi ích async | ✅ Đã có (`runtime/src/Redis`, `runtime/src/Mysql`): 1,7× so với 64 tiến trình FPM |
+| B5 | **Pool kết nối + kiểm tra transaction** giữa các request (rule R7) | Không mở lại kết nối mỗi request, không rò transaction | ✅ Đã có (`runtime/src/Pool`) |
+| B6 | **Adapter Laravel / Symfony** cho Performance mode (giống Laravel Octane: khởi động kernel một lần, reset container, auth, session sau mỗi request) | Đưa lợi ích 7× tới các framework phổ biến nhất | ✅ Đã có (`--framework=laravel\|symfony`): Laravel 13 nhanh hơn 6,7–14,6×, Symfony 8.1 nhanh hơn 6,3× |
 | B7 | **Plugin aaPanel**: chọn phiên bản QHturbo và chế độ Compatible/Performance cho từng site, rollback một nút bấm | Người không rành dòng lệnh cũng dùng được | ⏳ Đề xuất |
 | B8 | **Gói cài sẵn** (`.tar.gz` đã có, tiếp theo là `.deb` và kho apt) cho Ubuntu 22.04/24.04, Debian 12 | Không phải tự build (build mất 5–15 phút) | ◐ Có `scripts/package.sh` |
 
@@ -30,7 +30,7 @@ Các đề xuất dựa trên số đo của dự án (`logs/benchmarks.md`, `re
 | C2 | Dev server tự reload khi file thay đổi (watch, rồi SIGHUP) | ⏳ |
 | C3 | Endpoint `/metrics` (Prometheus): RPS, độ trễ, RAM, độ trễ event loop, số worker bị tái tạo | ⏳ (`Loop::stats()` đã có) |
 | C4 | Sinh `preload.php` tự động từ danh sách file nóng của OPcache | ⏳ |
-| C5 | Upload `multipart/form-data` → `$_FILES` trong Performance mode | ⏳ |
+| C5 | Upload `multipart/form-data` → `$_FILES` trong Performance mode | ✅ |
 | C6 | Mẫu GitHub Actions cho dự án người dùng: chạy test trên cả hai chế độ, kèm `--strict-state` | ◐ (CI của QHturbo làm mẫu) |
 
 ## D. Hiệu năng sâu (Phase 2–4, dài hạn, cần máy đo riêng)
