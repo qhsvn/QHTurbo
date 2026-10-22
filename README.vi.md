@@ -104,7 +104,7 @@ Profile `full` đã được build và kiểm thử trên 7.4 và 8.5; các nhá
 ### Trên máy chủ aaPanel (chế độ Compatible, từng site một)
 
 ```bash
-git clone https://github.com/tanchinhdo/QHTurbo.git /opt/qhturbo-src && cd /opt/qhturbo-src
+git clone https://github.com/qhsvn/QHTurbo.git /opt/qhturbo-src && cd /opt/qhturbo-src
 sudo scripts/aapanel.sh check   --php=8.5                    # chỉ kiểm tra, không thay đổi gì
 sudo scripts/aapanel.sh install --php=8.5                    # build + cài + chạy PHP-FPM (10–40 phút)
 sudo scripts/aapanel.sh enable  test.example.com --php=8.5   # chuyển 1 site; lỗi thì tự quay lại
@@ -119,7 +119,7 @@ Hướng dẫn đầy đủ: [docs/aapanel.md](docs/aapanel.md).
 sudo apt install -y git build-essential autoconf bison re2c pkg-config python3 \
   libxml2-dev libssl-dev libsqlite3-dev zlib1g-dev libcurl4-openssl-dev libzip-dev \
   libonig-dev libicu-dev libsodium-dev libpng-dev libjpeg-dev libfreetype-dev libgmp-dev libreadline-dev
-git clone https://github.com/tanchinhdo/QHTurbo.git && cd QHTurbo
+git clone https://github.com/qhsvn/QHTurbo.git && cd QHTurbo
 export QHT_LAB=~/QHTurbo-lab QHT_PHP=8.5          # QHT_PHP: 7.4 … 8.5
 scripts/bootstrap.sh                               # tải + xác minh tag upstream
 QHT_PROFILE=full scripts/build.sh baseline         # PHP + PHP-FPM

@@ -10,7 +10,7 @@ Máy build/đo: VM đám mây (Intel Xeon 2.8 GHz, 4 vCPU, 15 GiB, Ubuntu 24.04.
 
 | Task | Trạng thái | Commit / bằng chứng | Ghi chú |
 |---|---|---|---|
-| QHT-P01-001 Khởi tạo repo, cấu trúc thư mục, tài liệu | DONE | repo `tanchinhdo/QHTurbo` | Đồng bộ qua GitHub (ISSUE-002) |
+| QHT-P01-001 Khởi tạo repo, cấu trúc thư mục, tài liệu | DONE | repo `qhsvn/QHTurbo` | Đồng bộ qua GitHub (ISSUE-002) |
 | QHT-P01-002 Hỗ trợ đa phiên bản PHP 7.4 → 8.5 | DONE | `config/versions/*.env`, `scripts/lib.sh` | Yêu cầu bổ sung của người dùng |
 | QHT-P01-003 Build baseline 8.5.12 và 7.4.33 | DONE | `BUILD-INFO.txt` (sha256) | 7.4 cần `--enable-json` (đã sửa) |
 | QHT-P01-004 PHPT baseline | DONE | `results/tests/` | 8.5: 13568 pass / 0 fail. 7.4: 8997 pass / 46 fail, tất cả do môi trường (xem dưới) |

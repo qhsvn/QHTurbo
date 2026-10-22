@@ -2,7 +2,7 @@
 
 > **Tên dự án:** PHP QHturbo — High-Performance PHP Runtime  
 > **Ngày lập:** 22/10/2026  
-> **Vị trí dự án:** repo GitHub `tanchinhdo/QHTurbo` (clone về bất kỳ thư mục nào)  
+> **Vị trí dự án:** repo GitHub `qhsvn/QHTurbo` (clone về bất kỳ thư mục nào)  
 > **Mục tiêu phát hành:** Runtime PHP tùy biến có kiểm chứng, tương thích ngược tối đa; chạy Linux/aaPanel sau khi vượt qua kiểm thử.  
 > **Trạng thái thực tế:** Đã có **bộ khởi tạo** `PHP-QHturbo-starter.zip`; **chưa** triển khai, chưa clone/build lõi PHP và chưa có bản vá Zend Engine chứng minh tăng tốc.
 

@@ -5,7 +5,7 @@ Hướng dẫn chạy thử **QHturbo Compatible** trên máy chủ aaPanel, **t
 **Tóm tắt (5 lệnh):**
 
 ```bash
-git clone https://github.com/tanchinhdo/QHTurbo.git /opt/qhturbo-src && cd /opt/qhturbo-src
+git clone https://github.com/qhsvn/QHTurbo.git /opt/qhturbo-src && cd /opt/qhturbo-src
 sudo scripts/aapanel.sh check   --php=8.5                 # kiểm tra máy chủ, không thay đổi gì
 sudo scripts/aapanel.sh install --php=8.5                 # build + cài + chạy PHP-FPM riêng (10-40 phút)
 sudo scripts/aapanel.sh enable  test.example.com --php=8.5   # chuyển 1 site; lỗi thì tự quay lại
@@ -39,7 +39,7 @@ sudo scripts/aapanel.sh disable test.example.com          # quay lại PHP của
 
 ```bash
 apt install -y git          # aaPanel thường đã có
-git clone https://github.com/tanchinhdo/QHTurbo.git /opt/qhturbo-src
+git clone https://github.com/qhsvn/QHTurbo.git /opt/qhturbo-src
 cd /opt/qhturbo-src
 sudo scripts/aapanel.sh check --php=8.5
 ```

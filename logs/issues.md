@@ -20,9 +20,9 @@
 
 - **Ngày:** 2026-10-22
 - **Hiện tượng:** phiên làm việc chạy trên máy Linux đám mây, không ghi trực tiếp được vào ổ đĩa trên máy Windows của người dùng.
-- **Xử lý:** dự án được đẩy lên GitHub `tanchinhdo/QHTurbo`. Trên Windows chạy:
+- **Xử lý:** dự án được đẩy lên GitHub `qhsvn/QHTurbo`. Trên Windows chạy:
   ```powershell
-  git clone https://github.com/tanchinhdo/QHTurbo.git
+  git clone https://github.com/qhsvn/QHTurbo.git
   ```
   Build và benchmark nên chạy trong WSL trên filesystem Linux (`QHT_LAB=~/QHTurbo-lab`). Xem README.
 - **Trạng thái:** đóng.

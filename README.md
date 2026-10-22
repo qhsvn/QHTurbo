@@ -104,7 +104,7 @@ The `full` profile was built and tested on 7.4 and 8.5; the other branches use t
 ### On an aaPanel server (Compatible mode, one site at a time)
 
 ```bash
-git clone https://github.com/tanchinhdo/QHTurbo.git /opt/qhturbo-src && cd /opt/qhturbo-src
+git clone https://github.com/qhsvn/QHTurbo.git /opt/qhturbo-src && cd /opt/qhturbo-src
 sudo scripts/aapanel.sh check   --php=8.5                    # inspect only, changes nothing
 sudo scripts/aapanel.sh install --php=8.5                    # build + install + start PHP-FPM (10–40 min)
 sudo scripts/aapanel.sh enable  test.example.com --php=8.5   # switch one site; auto-rollback on errors
@@ -119,7 +119,7 @@ Full guide: [docs/aapanel.md](docs/aapanel.md).
 sudo apt install -y git build-essential autoconf bison re2c pkg-config python3 \
   libxml2-dev libssl-dev libsqlite3-dev zlib1g-dev libcurl4-openssl-dev libzip-dev \
   libonig-dev libicu-dev libsodium-dev libpng-dev libjpeg-dev libfreetype-dev libgmp-dev libreadline-dev
-git clone https://github.com/tanchinhdo/QHTurbo.git && cd QHTurbo
+git clone https://github.com/qhsvn/QHTurbo.git && cd QHTurbo
 export QHT_LAB=~/QHTurbo-lab QHT_PHP=8.5          # QHT_PHP: 7.4 … 8.5
 scripts/bootstrap.sh                               # fetch + verify the upstream tag
 QHT_PROFILE=full scripts/build.sh baseline         # PHP + PHP-FPM
