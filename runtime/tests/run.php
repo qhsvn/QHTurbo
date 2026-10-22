@@ -378,6 +378,11 @@ foreach ($tests as $name => $fn) {
     } catch (Throwable $e) {
         $failed++;
         printf("FAIL  %s\n      %s\n", $name, $e->getMessage());
+        if (getenv('GITHUB_ACTIONS')) {
+            // Annotation: readable in the run summary and through the API.
+            $msg = str_replace(["%", "\r", "\n"], ['%25', '%0D', '%0A'], $e->getMessage() . ' @ ' . $e->getFile() . ':' . $e->getLine());
+            printf("::error title=PHP %s %s::%s\n", PHP_VERSION, $name, $msg);
+        }
     }
 }
 printf("\n%s (PHP %s)\n", $failed ? "$failed FAILED" : 'all passed', PHP_VERSION);
