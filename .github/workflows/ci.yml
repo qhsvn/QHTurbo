@@ -1,0 +1,64 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  lint:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Shell syntax + shellcheck
+        run: |
+          for f in scripts/*.sh tests/*.sh; do bash -n "$f"; done
+          shellcheck -S warning -x scripts/*.sh tests/*.sh
+      - name: Python syntax
+        run: python3 -m py_compile scripts/*.py
+
+  # Workloads must run unchanged on every supported PHP branch.
+  workloads:
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        php: ['7.4', '8.0', '8.1', '8.2', '8.3', '8.4', '8.5']
+    steps:
+      - uses: actions/checkout@v4
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: ${{ matrix.php }}
+          coverage: none
+      - uses: actions/setup-node@v4
+        with: { node-version: '22' }
+      - uses: actions/setup-go@v5
+        with: { go-version: 'stable' }
+      - name: Lint PHP workloads and training scripts
+        run: for f in benchmarks/workloads/*/main.php benchmarks/training/*.php; do php -l "$f"; done
+      - name: Same output in PHP / Python / Node.js / Go
+        run: tests/check-workloads.sh "$(command -v php)"
+
+  # Build the pinned upstream baseline + QHturbo patches, run a PHPT subset
+  # and a quick benchmark smoke test.
+  build-smoke:
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        php: ['7.4', '8.5']
+    env:
+      QHT_PHP: ${{ matrix.php }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Toolchain
+        run: sudo apt-get update && sudo apt-get install -y build-essential autoconf bison re2c pkg-config
+      - run: scripts/bootstrap.sh
+      - run: scripts/build.sh baseline
+      - run: scripts/build.sh qhturbo
+      - name: PHPT (Zend subset, OPcache on)
+        run: |
+          scripts/run-tests.sh qhturbo opcache Zend/tests
+          cat results/tests/php$QHT_PHP-qhturbo-opcache/summary.md
+      - name: Benchmark smoke
+        run: python3 scripts/bench.py php --php "$QHT_PHP" --variants baseline,qhturbo --size quick --runs 3 --out /tmp/smoke

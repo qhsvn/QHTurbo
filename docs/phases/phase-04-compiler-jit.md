@@ -1,0 +1,23 @@
+# PHASE 04 — Trình biên dịch / OPcache / JIT (`QHT-P04`)
+
+**Trạng thái:** `IN_PROGRESS`. LTO + PGO và số đo JIT on/off đã có; tối ưu pass của compiler PHP chưa bắt đầu.
+
+## Đã làm
+
+- Biến thể `qhturbo-pgo`: `-flto=auto -fno-semantic-interposition` + PGO (gcc `-fprofile-generate`/`-fprofile-use`). Tập huấn luyện tách khỏi tập đo.
+- `bench.py` đo cả `interp` (OPcache, không JIT) và `jit` (tracing JIT, buffer 128M) cho mọi nhánh ≥ 8.0.
+- Profile cấu hình: `config/ini/opcache-production.ini`, `config/ini/jit.ini`.
+
+Số đo xem trong `results/` và `logs/benchmarks.md`.
+
+## Việc còn lại
+
+- [ ] Đo JIT `function` và `tracing` với các mức `opcache.jit=1254/1255`, so với interpreter.
+- [ ] Chạy PHPT với JIT trên binary PGO (`scripts/run-tests.sh qhturbo-pgo jit`).
+- [ ] Đánh giá pass tối ưu trong `Zend/Optimizer/` (DFA, SCCP, inference) với code framework thực tế.
+- [ ] Kiểm tra deoptimization, exception, tràn số nguyên, kiểu động, debug info khi bật JIT.
+- [ ] Chính sách: JIT **tắt mặc định** trong profile web, chỉ bật khi benchmark của chính ứng dụng cho thấy có lợi.
+
+## Điều kiện hoàn thành
+
+Có số liệu cho từng chế độ, không crash, không sai ngữ nghĩa, có chính sách bật/tắt rõ ràng.

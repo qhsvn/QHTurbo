@@ -1,0 +1,2 @@
+# Patch series for PHP 7.4 (applied in order by scripts/build.sh).
+# One patch per line, relative to this directory. Empty = no source changes yet.

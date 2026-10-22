@@ -1,0 +1,6 @@
+# Heavy, regenerable artefacts (see scripts/bootstrap.sh, scripts/build.sh)
+/php-src/
+/worktrees/
+/build/
+# Raw benchmark output; summaries in results/*.md are committed
+/results/**/raw/

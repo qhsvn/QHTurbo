@@ -1,0 +1,12 @@
+{
+  "_comment": "Arguments per workload. 'full' targets ~1-3 s on the interpreter; 'quick' is a CI smoke size. Outputs must be identical across PHP variants and languages.",
+  "nbody":         {"full": ["800000"],        "quick": ["20000"]},
+  "spectral_norm": {"full": ["700"],           "quick": ["60"]},
+  "fannkuch":      {"full": ["10"],             "quick": ["7"]},
+  "binary_trees":  {"full": ["16"],            "quick": ["10"]},
+  "mandelbrot":    {"full": ["1000"],           "quick": ["100"]},
+  "hashmap":       {"full": ["2000000"],       "quick": ["50000"]},
+  "json":          {"full": ["20000", "30"],   "quick": ["2000", "2"]},
+  "strings":       {"full": ["300000", "10"],   "quick": ["20000", "2"]},
+  "objects":       {"full": ["3000000"],       "quick": ["100000"]}
+}
