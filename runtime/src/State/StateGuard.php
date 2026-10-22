@@ -73,7 +73,12 @@ final class StateGuard
         $this->requests++;
 
         foreach ($this->resetters as $resetter) {
-            $resetter instanceof ResetInterface ? $resetter->reset() : $resetter();
+            try {
+                $resetter instanceof ResetInterface ? $resetter->reset() : $resetter();
+            } catch (\Throwable $e) {
+                // A failing reset must not lose the response already built.
+                $violations[] = sprintf('reset hook failed: %s: %s', $e::class, $e->getMessage());
+            }
         }
 
         while (ob_get_level() > $this->baselineObLevel) {
@@ -120,13 +125,14 @@ final class StateGuard
      * @param array<string, mixed>  $post
      * @param array<string, string> $cookies
      * @param array<string, mixed>  $server
+     * @param array<string, mixed>  $files
      */
-    public function populateSuperglobals(array $query, array $post, array $cookies, array $server): void
+    public function populateSuperglobals(array $query, array $post, array $cookies, array $server, array $files = []): void
     {
         $_GET = $query;
         $_POST = $post;
         $_COOKIE = $cookies;
-        $_FILES = [];
+        $_FILES = $files;
         $_REQUEST = $query + $post;
         $_SERVER = $server + $this->serverBaseline;
     }

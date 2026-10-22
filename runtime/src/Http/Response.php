@@ -7,15 +7,18 @@ namespace QHTurbo\Runtime\Http;
 final class Response
 {
     private const REASONS = [
-        200 => 'OK', 201 => 'Created', 204 => 'No Content', 301 => 'Moved Permanently',
-        302 => 'Found', 304 => 'Not Modified', 400 => 'Bad Request', 401 => 'Unauthorized',
-        403 => 'Forbidden', 404 => 'Not Found', 405 => 'Method Not Allowed',
-        408 => 'Request Timeout', 411 => 'Length Required', 413 => 'Payload Too Large',
-        431 => 'Request Header Fields Too Large', 500 => 'Internal Server Error',
-        501 => 'Not Implemented', 503 => 'Service Unavailable',
+        200 => 'OK', 201 => 'Created', 202 => 'Accepted', 204 => 'No Content', 206 => 'Partial Content',
+        301 => 'Moved Permanently', 302 => 'Found', 303 => 'See Other', 304 => 'Not Modified',
+        307 => 'Temporary Redirect', 308 => 'Permanent Redirect', 400 => 'Bad Request',
+        401 => 'Unauthorized', 402 => 'Payment Required', 403 => 'Forbidden', 404 => 'Not Found',
+        405 => 'Method Not Allowed', 406 => 'Not Acceptable', 408 => 'Request Timeout', 409 => 'Conflict',
+        410 => 'Gone', 411 => 'Length Required', 413 => 'Payload Too Large', 415 => 'Unsupported Media Type',
+        419 => 'Page Expired', 422 => 'Unprocessable Content', 423 => 'Locked', 429 => 'Too Many Requests',
+        431 => 'Request Header Fields Too Large', 500 => 'Internal Server Error', 501 => 'Not Implemented',
+        502 => 'Bad Gateway', 503 => 'Service Unavailable', 504 => 'Gateway Timeout',
     ];
 
-    /** @param array<string, string> $headers */
+    /** @param array<string, string|list<string>> $headers several values = several header lines (Set-Cookie) */
     public function __construct(
         public int $status = 200,
         public array $headers = [],
@@ -62,7 +65,9 @@ final class Response
             $headers['Date'] = gmdate('D, d M Y H:i:s') . ' GMT';
         }
         foreach ($headers as $name => $value) {
-            $out .= "$name: $value\r\n";
+            foreach ((array) $value as $one) {
+                $out .= "$name: $one\r\n";
+            }
         }
         return $out . "\r\n" . ($headOnly ? '' : $this->body);
     }

@@ -43,11 +43,63 @@ jobs:
           set +e
           php scripts/qht-doctor.php --scan=runtime/examples; code=$?
           test $code -le 1
-      - name: Performance runtime tests (PHP >= 8.1)
-        if: matrix.php != '7.4' && matrix.php != '8.0'
+
+  # QHturbo Performance runtime, including the async Redis / MySQL clients
+  # against real servers (MySQL 8.4 = caching_sha2_password authentication).
+  runtime:
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        php: ['8.1', '8.2', '8.3', '8.4', '8.5']
+    services:
+      redis:
+        image: redis:7
+        ports: ['6379:6379']
+      mysql:
+        image: mysql:8.4
+        env:
+          MYSQL_ROOT_PASSWORD: root
+          MYSQL_DATABASE: qht
+          MYSQL_USER: qht
+          MYSQL_PASSWORD: qhtpass
+        ports: ['3306:3306']
+        options: --health-cmd="mysqladmin ping -h 127.0.0.1" --health-interval=5s --health-timeout=5s --health-retries=20
+    env:
+      QHT_TEST_REDIS: redis://127.0.0.1:6379/15
+      QHT_TEST_MYSQL: mysql://qht:qhtpass@127.0.0.1:3306/qht
+    steps:
+      - uses: actions/checkout@v4
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: ${{ matrix.php }}
+          extensions: mysqli, pcntl, posix
+          coverage: none
+      - name: Lint runtime
+        run: for f in $(find runtime -name '*.php') runtime/bin/qhturbo-serve; do php -l "$f" > /dev/null; done
+      - name: Runtime tests (event loop, HTTP, workers, state, Redis, MySQL)
+        run: php runtime/tests/run.php
+
+  # Laravel and Symfony adapters against freshly created applications.
+  frameworks:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.4'
+          extensions: mysqli, pcntl, posix, pdo_sqlite, curl, intl
+          coverage: none
+          tools: composer
+      - name: Create Laravel and Symfony apps
         run: |
-          for f in $(find runtime -name '*.php') runtime/bin/qhturbo-serve; do php -l "$f" > /dev/null; done
-          php runtime/tests/run.php
+          composer create-project --no-interaction --prefer-dist laravel/laravel /tmp/laravel
+          composer create-project --no-interaction --prefer-dist symfony/skeleton /tmp/symfony
+      - name: Framework adapter tests
+        env:
+          QHT_TEST_LARAVEL: /tmp/laravel
+          QHT_TEST_SYMFONY: /tmp/symfony
+        run: php runtime/tests/frameworks.php
 
   # Build the pinned upstream baseline + QHturbo patches, run a PHPT subset
   # and a quick benchmark smoke test.

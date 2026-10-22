@@ -1,6 +1,6 @@
 {
     "name": "qhturbo/runtime",
-    "description": "QHturbo Performance mode: long-lived PHP workers, event loop, Fiber-based async I/O and state rules",
+    "description": "QHturbo Performance mode: long-lived PHP workers, event loop, Fiber-based async I/O, async Redis/MySQL, Laravel/Symfony adapters",
     "type": "library",
     "license": "MIT",
     "require": {
@@ -8,7 +8,9 @@
     },
     "suggest": {
         "ext-pcntl": "Multi-process workers (--workers=N), graceful reload and shutdown",
-        "ext-posix": "Signals to worker processes"
+        "ext-posix": "Signals to worker processes",
+        "ext-mysqli": "Async MySQL client (QHTurbo\\Runtime\\Mysql, mysqlnd)",
+        "symfony/http-foundation": "Laravel / Symfony adapters (--framework)"
     },
     "autoload": {
         "psr-4": { "QHTurbo\\Runtime\\": "src/" },

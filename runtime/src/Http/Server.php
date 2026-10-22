@@ -144,7 +144,7 @@ final class Server
     {
         $legacy = $this->options->superglobals;
         if ($legacy) {
-            $this->guard->populateSuperglobals($request->query, $request->parsedBody(), $request->cookies(), $request->server);
+            $this->guard->populateSuperglobals($request->query, $request->parsedBody(), $request->cookies(), $request->server, $request->uploadedFiles());
         }
         try {
             $response = Response::from(($this->handler)($request));
@@ -152,6 +152,7 @@ final class Server
             ($this->log)(sprintf('uncaught %s: %s in %s:%d', $e::class, $e->getMessage(), $e->getFile(), $e->getLine()));
             $response = Response::text($this->options->debug ? (string) $e : "Internal Server Error\n", 500);
         }
+        $request->cleanup();
         $this->served++;
         // Per-request state must not survive; with concurrency > 1 the guard
         // only runs when no other request is in flight.

@@ -31,6 +31,8 @@ final class Options
         public int $maxHeaderBytes = 65536,
         public int $maxBodyBytes = 8 * 1024 * 1024,
         public int $backlog = 1024,
+        /** Run a framework application directory: '' | 'laravel' | 'symfony'. */
+        public string $framework = '',
     ) {
     }
 
@@ -49,6 +51,16 @@ final class Options
         $o->strictState = isset($opts['strict-state']);
         $o->stateCheckEvery = (int) $str('state-check-every', $o->strictState ? '1' : (string) $o->stateCheckEvery);
         $o->debug = isset($opts['debug']);
+        $o->framework = strtolower($str('framework', ''));
+        if (isset($opts['max-body'])) {
+            $o->maxBodyBytes = self::bytes($str('max-body', '8M'));
+        }
+        if (!in_array($o->framework, ['', 'laravel', 'symfony'], true)) {
+            throw new \InvalidArgumentException("--framework must be laravel or symfony, got {$o->framework}");
+        }
+        if ($o->framework !== '' && $o->concurrency > 1) {
+            throw new \InvalidArgumentException("--framework={$o->framework} needs --concurrency=1 (the framework container is shared by the whole worker)");
+        }
         if ($o->superglobals && $o->concurrency > 1) {
             throw new \InvalidArgumentException('--superglobals requires --concurrency=1 (superglobals are shared by all requests of a worker)');
         }

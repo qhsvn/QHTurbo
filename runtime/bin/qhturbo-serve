@@ -5,6 +5,7 @@ declare(strict_types=1);
 
 // QHturbo Performance mode: long-lived PHP workers with an event loop.
 //   qhturbo-serve app.php [--host=127.0.0.1] [--port=8080] [--workers=N]
+//   qhturbo-serve /path/to/project --framework=laravel|symfony [options]
 //                 [--concurrency=1] [--max-requests=10000] [--memory-limit=256M]
 //                 [--superglobals] [--strict-state] [--state-check-every=100] [--debug]
 
@@ -25,7 +26,7 @@ use QHTurbo\Runtime\Worker\Supervisor;
 // Options may come before or after the app file (getopt() stops at the first
 // positional argument, so parse by hand).
 $known = ['host', 'port', 'workers', 'concurrency', 'max-requests', 'memory-limit',
-    'superglobals', 'strict-state', 'state-check-every', 'debug', 'help'];
+    'superglobals', 'strict-state', 'state-check-every', 'debug', 'help', 'framework', 'max-body'];
 $opts = [];
 $app = null;
 foreach (array_slice($argv, 1) as $arg) {
@@ -44,11 +45,12 @@ foreach (array_slice($argv, 1) as $arg) {
 }
 if ($app === null || isset($opts['help'])) {
     fwrite(STDERR, "usage: qhturbo-serve app.php [--host=H] [--port=P] [--workers=N] [--concurrency=C]\n"
-        . "       [--max-requests=N] [--memory-limit=256M] [--superglobals] [--strict-state] [--debug]\n");
+        . "       [--max-requests=N] [--memory-limit=256M] [--max-body=8M] [--superglobals] [--strict-state] [--debug]\n"
+        . "       qhturbo-serve /path/to/project --framework=laravel|symfony [same options]\n");
     exit($app === null ? 1 : 0);
 }
-if (!is_file($app)) {
-    fwrite(STDERR, "app file not found: $app\n");
+if (isset($opts['framework']) ? !is_dir($app) : !is_file($app)) {
+    fwrite(STDERR, (isset($opts['framework']) ? 'project directory' : 'app file') . " not found: $app\n");
     exit(1);
 }
 

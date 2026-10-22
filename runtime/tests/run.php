@@ -6,7 +6,7 @@ declare(strict_types=1);
 // Unit tests run in-process; server tests start bin/qhturbo-serve with the
 // same PHP binary and talk to it over TCP.
 
-require dirname(__DIR__) . '/src/autoload.php';
+require __DIR__ . '/lib.php';
 
 use QHTurbo\Runtime\Async\TimeoutException;
 use QHTurbo\Runtime\EventLoop\Loop;
@@ -19,18 +19,6 @@ use function QHTurbo\Runtime\Async\delay;
 use function QHTurbo\Runtime\Async\read;
 use function QHTurbo\Runtime\Async\timeout;
 use function QHTurbo\Runtime\Async\write;
-
-$tests = [];
-function test(string $name, callable $fn): void
-{
-    $GLOBALS['tests'][$name] = $fn;
-}
-function check(bool $cond, string $message): void
-{
-    if (!$cond) {
-        throw new RuntimeException($message);
-    }
-}
 
 // ---------------------------------------------------------------- unit ----
 
@@ -121,80 +109,182 @@ test('connect to a closed port fails', function (): void {
     }
 });
 
+// --------------------------------------------------- redis / mysql ----
+// Need servers: QHT_TEST_REDIS (default redis://127.0.0.1:6379/15) and
+// QHT_TEST_MYSQL (default mysql://qht:qhtpass@127.0.0.1:3306/qht).
+// Skipped (not failed) when the server is unreachable.
+
+function redisOrSkip(int $pool = 4): QHTurbo\Runtime\Redis\Client
+{
+    $uri = getenv('QHT_TEST_REDIS') ?: 'redis://127.0.0.1:6379/15';
+    $client = new QHTurbo\Runtime\Redis\Client($uri, $pool, 2.0);
+    try {
+        await(async(fn () => $client->ping()));
+    } catch (Throwable $e) {
+        throw new Skip("no Redis at $uri");
+    }
+    return $client;
+}
+
+function mysqlOrSkip(int $pool = 4, float $queryTimeout = 30.0, ?Closure $log = null): QHTurbo\Runtime\Mysql\Client
+{
+    $cfg = QHTurbo\Runtime\Mysql\Config::fromUri(getenv('QHT_TEST_MYSQL') ?: 'mysql://qht:qhtpass@127.0.0.1:3306/qht');
+    $cfg->poolSize = $pool;
+    $cfg->queryTimeout = $queryTimeout;
+    $client = new QHTurbo\Runtime\Mysql\Client($cfg, $log);
+    try {
+        await(async(fn () => $client->query('SELECT 1')));
+    } catch (Throwable $e) {
+        throw new Skip('no MySQL: ' . $e->getMessage());
+    }
+    return $client;
+}
+
+test('redis: commands, binary data, errors keep the connection', function (): void {
+    Loop::reset();
+    $r = redisOrSkip(1);
+    await(async(function () use ($r) {
+        $r->del('qht:a', 'qht:list');
+        check($r->set('qht:a', "bin\r\n\0ary ✓") === 'OK', 'SET');
+        check($r->get('qht:a') === "bin\r\n\0ary ✓", 'binary-safe GET');
+        check($r->get('qht:missing') === null, 'missing key is null');
+        check($r->incr('qht:n') >= 1, 'INCR returns int');
+        $r->rpush('qht:list', 'x', 'y');
+        check($r->lrange('qht:list', 0, -1) === ['x', 'y'], 'array reply');
+        try {
+            $r->lpush('qht:a', 'z'); // WRONGTYPE
+            check(false, 'no error');
+        } catch (QHTurbo\Runtime\Redis\RedisException $e) {
+            check(str_starts_with($e->getMessage(), 'WRONGTYPE'), $e->getMessage());
+        }
+        check($r->get('qht:a') !== null && $r->poolStats()['size'] === 1, 'connection reused after an error reply');
+        $replies = $r->pipeline(array_map(fn ($i) => ['SET', "qht:p$i", (string) $i], range(1, 500)));
+        check(count($replies) === 500 && $replies[499] === 'OK', 'pipeline');
+    }));
+});
+
+test('redis: pool runs commands concurrently and limits connections', function (): void {
+    foreach ([5 => [0.15, 0.45], 1 => [0.9, 3.0]] as $pool => [$min, $max]) {
+        Loop::reset();
+        $r = redisOrSkip($pool);
+        $t = microtime(true);
+        await(async(fn () => all(array_map(fn ($i) => async(fn () => $r->blpop("qht:empty$i", '0.2')), range(1, 5)))));
+        $el = microtime(true) - $t;
+        check($el >= $min && $el <= $max, sprintf('pool %d: 5 x BLPOP 0.2 s took %.2f s', $pool, $el));
+        check($r->poolStats()['size'] <= $pool, 'pool exceeded its size');
+    }
+});
+
+test('redis: recovers after the server kills the connection', function (): void {
+    Loop::reset();
+    $r = redisOrSkip(1);
+    $admin = redisOrSkip(1);
+    await(async(function () use ($r, $admin) {
+        $id = $r->client('ID');
+        $admin->client('KILL', 'ID', (string) $id);
+        try {
+            $r->ping();
+        } catch (QHTurbo\Runtime\Redis\RedisException) {
+            // first use of the dead connection fails and discards it
+        }
+        check($r->ping() === 'PONG', 'no reconnect');
+    }));
+});
+
+test('mysql: params, types, escaping, errors', function (): void {
+    Loop::reset();
+    $db = mysqlOrSkip(1);
+    await(async(function () use ($db) {
+        $db->query('DROP TABLE IF EXISTS qht_t');
+        $db->query('CREATE TABLE qht_t (id INT AUTO_INCREMENT PRIMARY KEY, name VARCHAR(100) UNIQUE, score DOUBLE, flag TINYINT, note TEXT NULL)');
+        $evil = "O'Brien \"quoted\" \\ backslash ? not-a-placeholder; DROP TABLE qht_t; -- ✓ tiếng Việt";
+        $ins = $db->query('INSERT INTO qht_t (name, score, flag, note) VALUES (?, ?, ?, ?)', [$evil, 1.5, true, null]);
+        check($ins->insertId === 1 && $ins->affectedRows === 1, 'insert id / affected rows');
+        $db->query("INSERT INTO qht_t (name, score, flag) VALUES ('lit?eral', ?, ?)", [2, false]);
+        $row = $db->query('SELECT * FROM qht_t WHERE name = ?', [$evil])->first();
+        check($row['name'] === $evil && $row['score'] === 1.5 && $row['flag'] === 1 && $row['note'] === null && $row['id'] === 1, 'round trip: ' . json_encode($row));
+        check($db->query('SELECT name FROM qht_t WHERE id = 2')->value() === 'lit?eral', '? inside a string literal untouched');
+        check(count($db->query('SELECT id FROM qht_t WHERE id IN (?)', [[1, 2, 99]])) === 2, 'IN (?) with an array');
+        try {
+            $db->query('INSERT INTO qht_t (name) VALUES (?)', [$evil]);
+            check(false, 'duplicate accepted');
+        } catch (QHTurbo\Runtime\Mysql\QueryException $e) {
+            check($e->getCode() === 1062, 'error code ' . $e->getCode());
+        }
+        check($db->query('SELECT COUNT(*) FROM qht_t')->value() === 2 && $db->poolStats()['size'] === 1, 'connection reused after an SQL error');
+    }));
+});
+
+test('mysql: queries from concurrent requests run in parallel', function (): void {
+    foreach ([5 => [0.15, 0.6], 1 => [0.95, 3.0]] as $pool => [$min, $max]) {
+        Loop::reset();
+        $db = mysqlOrSkip($pool);
+        $t = microtime(true);
+        $r = await(async(fn () => all(array_map(fn ($i) => async(fn () => $db->query('SELECT SLEEP(0.2) AS s, ? AS i', [$i])->first()['i']), range(1, 5)))));
+        $el = microtime(true) - $t;
+        check($r === [1, 2, 3, 4, 5], 'results in order');
+        check($el >= $min && $el <= $max, sprintf('pool %d: 5 x SLEEP(0.2) took %.2f s', $pool, $el));
+    }
+});
+
+test('mysql: transactions commit, roll back, never leak', function (): void {
+    Loop::reset();
+    $logged = [];
+    $db = mysqlOrSkip(1, 30.0, function (string $m) use (&$logged) { $logged[] = $m; });
+    await(async(function () use ($db, &$logged) {
+        $db->query('DROP TABLE IF EXISTS qht_acc');
+        $db->query('CREATE TABLE qht_acc (id INT PRIMARY KEY, bal INT) ENGINE=InnoDB');
+        $db->query('INSERT INTO qht_acc VALUES (1, 100), (2, 0)');
+        $db->transaction(function ($tx) {
+            $tx->query('UPDATE qht_acc SET bal = bal - 30 WHERE id = 1');
+            $tx->query('UPDATE qht_acc SET bal = bal + 30 WHERE id = 2');
+        });
+        try {
+            $db->transaction(function ($tx) {
+                $tx->query('UPDATE qht_acc SET bal = bal - 1000 WHERE id = 1');
+                throw new DomainException('insufficient funds');
+            });
+        } catch (DomainException) {
+        }
+        $db->withConnection(fn ($c) => $c->query('BEGIN') && $c->query('UPDATE qht_acc SET bal = 0'));
+        $bal = array_column($db->query('SELECT id, bal FROM qht_acc ORDER BY id')->rows, 'bal');
+        check($bal === [70, 30], 'balances ' . json_encode($bal));
+        check(count($logged) === 1 && str_contains($logged[0], 'rolled back'), 'open transaction not reported');
+    }));
+});
+
+test('mysql: query timeout discards the connection, loop survives', function (): void {
+    Loop::reset();
+    $db = mysqlOrSkip(1, 0.3);
+    await(async(function () use ($db) {
+        try {
+            $db->query('SELECT SLEEP(2)');
+            check(false, 'no timeout');
+        } catch (QHTurbo\Runtime\Async\TimeoutException) {
+        }
+        check($db->poolStats()['size'] === 0, 'timed-out connection kept');
+        check($db->query('SELECT 42')->value() === 42, 'pool did not recover');
+        delay(0.1); // the poller must not touch the closed connection
+    }));
+});
+
+test('mysql: recovers after the server kills the connection', function (): void {
+    Loop::reset();
+    $db = mysqlOrSkip(1);
+    $admin = mysqlOrSkip(1);
+    await(async(function () use ($db, $admin) {
+        $id = $db->query('SELECT CONNECTION_ID()')->value();
+        $admin->query('KILL ?', [$id]);
+        try {
+            $db->query('SELECT 1');
+        } catch (QHTurbo\Runtime\Mysql\QueryException) {
+            // allowed: lost connection mid-query is not retried automatically
+        }
+        check($db->query('SELECT 7')->value() === 7, 'no reconnect');
+    }));
+});
+
 // -------------------------------------------------------------- server ----
-
-final class TestServer
-{
-    /** @var resource */
-    private $proc;
-    public string $log = '';
-    private string $logFile;
-
-    /** @param list<string> $phpArgs e.g. ['-d', 'disable_functions=...'] */
-    public function __construct(string $app, array $args, public int $port, array $phpArgs = [])
-    {
-        $this->logFile = tempnam(sys_get_temp_dir(), 'qht');
-        $cmd = array_merge([PHP_BINARY], $phpArgs, [dirname(__DIR__) . '/bin/qhturbo-serve', $app, "--port=$port"], $args);
-        $this->proc = proc_open($cmd, [0 => ['file', '/dev/null', 'r'], 1 => ['file', $this->logFile, 'w'], 2 => ['file', $this->logFile, 'w']], $pipes);
-        for ($i = 0; $i < 100; $i++) {
-            $s = @stream_socket_client("tcp://127.0.0.1:$port", $e, $m, 0.1);
-            if ($s) {
-                fclose($s);
-                return;
-            }
-            usleep(50_000);
-        }
-        throw new RuntimeException("server did not start:\n" . file_get_contents($this->logFile));
-    }
-
-    public function signal(int $sig): void
-    {
-        proc_terminate($this->proc, $sig);
-    }
-
-    public function stop(): string
-    {
-        proc_terminate($this->proc, SIGTERM);
-        for ($i = 0; $i < 100 && proc_get_status($this->proc)['running']; $i++) {
-            usleep(50_000);
-        }
-        proc_close($this->proc);
-        $this->log = (string) file_get_contents($this->logFile);
-        unlink($this->logFile);
-        return $this->log;
-    }
-}
-
-/** Blocking raw HTTP exchange; returns [status, headers, body]. */
-function http(int $port, string $raw, &$sock = null): array
-{
-    $sock ??= stream_socket_client("tcp://127.0.0.1:$port", $errno, $errstr, 5);
-    stream_set_timeout($sock, 10);
-    fwrite($sock, $raw);
-    $head = '';
-    while (!str_contains($head, "\r\n\r\n") && !feof($sock)) {
-        $head .= fread($sock, 1);
-    }
-    [$headText] = explode("\r\n\r\n", $head, 2);
-    $lines = explode("\r\n", $headText);
-    $status = (int) (explode(' ', $lines[0])[1] ?? 0); // 0 = connection closed without a response
-    $headers = [];
-    foreach (array_slice($lines, 1) as $l) {
-        [$k, $v] = explode(':', $l, 2);
-        $headers[strtolower($k)] = trim($v);
-    }
-    $len = (int) ($headers['content-length'] ?? 0);
-    $body = '';
-    while (strlen($body) < $len && !feof($sock)) {
-        $body .= fread($sock, $len - strlen($body));
-    }
-    return [$status, $headers, $body];
-}
-
-function get(int $port, string $path): array
-{
-    return http($port, "GET $path HTTP/1.1\r\nHost: t\r\nConnection: close\r\n\r\n");
-}
 
 $fixtures = __DIR__ . '/fixtures';
 $port = 18100;
@@ -380,27 +470,4 @@ test('state: superglobals for legacy code, reset hooks and ini restore', functio
     }
 });
 
-// ------------------------------------------------------------------ run ----
-
-$filter = $argv[1] ?? '';
-$failed = 0;
-foreach ($tests as $name => $fn) {
-    if ($filter !== '' && !str_contains($name, $filter)) {
-        continue;
-    }
-    $t = microtime(true);
-    try {
-        $fn();
-        printf("ok    %-62s %.2fs\n", $name, microtime(true) - $t);
-    } catch (Throwable $e) {
-        $failed++;
-        printf("FAIL  %s\n      %s\n", $name, $e->getMessage());
-        if (getenv('GITHUB_ACTIONS')) {
-            // Annotation: readable in the run summary and through the API.
-            $msg = str_replace(["%", "\r", "\n"], ['%25', '%0D', '%0A'], $e->getMessage() . ' @ ' . $e->getFile() . ':' . $e->getLine());
-            printf("::error title=PHP %s %s::%s\n", PHP_VERSION, $name, $msg);
-        }
-    }
-}
-printf("\n%s (PHP %s)\n", $failed ? "$failed FAILED" : 'all passed', PHP_VERSION);
-exit($failed ? 1 : 0);
+run_tests();

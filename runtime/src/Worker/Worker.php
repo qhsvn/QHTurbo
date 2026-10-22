@@ -30,7 +30,11 @@ final class Worker
         $log = static fn (string $msg) => fwrite(STDERR, sprintf("[qhturbo %s pid=%d] %s\n", date('H:i:s'), getmypid(), $msg));
         $guard = new StateGuard($this->options->strictState, $this->options->stateCheckEvery, \Closure::fromCallable($log));
 
-        $handler = self::bootstrap($this->appFile, $guard);
+        $handler = match ($this->options->framework) {
+            'laravel' => self::register(new \QHTurbo\Runtime\Bridge\Laravel($this->appFile, \Closure::fromCallable($log)), $guard),
+            'symfony' => self::register(new \QHTurbo\Runtime\Bridge\Symfony($this->appFile), $guard),
+            default => self::bootstrap($this->appFile, $guard),
+        };
         $guard->captureBaseline();
 
         $loop = Loop::get();
@@ -77,6 +81,11 @@ final class Worker
     private static function bootstrap(string $appFile, StateGuard $guard): callable
     {
         $app = require $appFile;
+        return self::register($app, $guard, $appFile);
+    }
+
+    private static function register(mixed $app, StateGuard $guard, string $appFile = 'bridge'): callable
+    {
         if (is_object($app) && !is_callable($app) && method_exists($app, 'handle')) {
             if ($app instanceof ResetInterface) {
                 $guard->addResetter($app);
