@@ -8,7 +8,9 @@ fail=0
 for dir in "$ROOT"/benchmarks/workloads/*/; do
   wl="$(basename "$dir")"
   mapfile -t args < <(python3 -c "import json,sys; print('\n'.join(json.load(open('$ROOT/benchmarks/workloads.json'))['$wl']['quick']))")
-  ref="$("$PHP" -n "$dir/main.php" "${args[@]}")"
+  # No -n: distro builds (e.g. PHP 7.4 on Ubuntu) load json as a shared
+  # extension from php.ini.
+  ref="$("$PHP" "$dir/main.php" "${args[@]}")"
   for runner in "python3:py" "node:js" "go run:go"; do
     cmd="${runner%%:*}"; ext="${runner##*:}"
     command -v "${cmd%% *}" >/dev/null || continue
