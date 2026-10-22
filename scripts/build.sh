@@ -4,7 +4,7 @@
 #
 #   baseline     upstream tag, BASE_CFLAGS
 #   qhturbo      upstream tag + patches/, BASE_CFLAGS      (isolates the patches)
-#   qhturbo-pgo  upstream tag + patches/, LTO + PGO        (release build)
+#   qhturbo-pgo  upstream tag + patches/, PGO-optimised     (release build)
 #
 # Each variant has its own git worktree in worktrees/<php>/<variant>, generated
 # only from the upstream commit + patches/<php>/. Manual edits in a worktree are never
@@ -55,17 +55,26 @@ Export them first (scripts/make-patch.sh $variant <name>) or back them up, then 
   return 0
 }
 
-configure() {
+variant_flags() {
   local cflags="$BASE_CFLAGS" ldflags=""
   if [[ "$variant" == *-pgo ]]; then
-    cflags+=" $LTO_CFLAGS"
-    ldflags+=" $LTO_LDFLAGS"
+    cflags+="${PGO_EXTRA_CFLAGS:+ $PGO_EXTRA_CFLAGS}"
+    ldflags+="$PGO_EXTRA_LDFLAGS"
   fi
+  echo "$cflags|$ldflags|${CONFIGURE_FLAGS[*]}"
+}
+
+configure() {
+  local flags cflags ldflags
+  flags="$(variant_flags)"
+  cflags="${flags%%|*}"; ldflags="${flags#*|}"; ldflags="${ldflags%%|*}"
   log "Configuring ($variant): CFLAGS='$cflags' LDFLAGS='$ldflags'"
   (cd "$wt" && ./buildconf --force >/dev/null \
     && ./configure "${CONFIGURE_FLAGS[@]}" CFLAGS="$cflags" LDFLAGS="$ldflags" > "$meta/configure.log" 2>&1) \
     || die "configure failed, see $meta/configure.log"
-  echo "$cflags|$ldflags|${CONFIGURE_FLAGS[*]}" > "$meta/configured"
+  # Objects built with other flags must not be reused.
+  make -C "$wt" clean > /dev/null 2>&1 || true
+  echo "$flags" > "$meta/configured"
 }
 
 build_plain() {
@@ -81,15 +90,17 @@ build_pgo() {
   "$QHT_ROOT/scripts/pgo-train.sh" "$wt/sapi/cli/php" "$wt" > "$meta/train.log" 2>&1 \
     || die "training failed, see $meta/train.log"
   log "PGO step 3/3: optimised rebuild"
+  # -fprofile-partial-training: code the training run never reached keeps
+  # normal -O2 optimisation instead of being optimised for size.
   make -C "$wt" prof-clean > /dev/null 2>&1
-  make -C "$wt" -j"$JOBS" prof-use EXTRA_CFLAGS="-Wno-missing-profile -Wno-coverage-mismatch" >> "$meta/make.log" 2>&1 \
+  make -C "$wt" -j"$JOBS" prof-use EXTRA_CFLAGS="-fprofile-partial-training -Wno-missing-profile -Wno-coverage-mismatch" >> "$meta/make.log" 2>&1 \
     || die "prof-use failed, see $meta/make.log"
 }
 
 changed=0
 prepare_worktree && changed=1
 if (( changed )) || [[ ! -f "$wt/Makefile" ]] \
-   || ! grep -qF -- "${CONFIGURE_FLAGS[*]}" "$meta/configured" 2>/dev/null; then
+   || [[ "$(cat "$meta/configured" 2>/dev/null)" != "$(variant_flags)" ]]; then
   configure
 fi
 

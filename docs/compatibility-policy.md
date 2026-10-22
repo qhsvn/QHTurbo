@@ -36,7 +36,7 @@ Các script in cảnh báo mỗi khi bootstrap hoặc build một nhánh EOL.
 1. **Không đổi cú pháp và ngữ nghĩa PHP.** Mã chạy đúng trên PHP gốc cùng nhánh phải cho cùng kết quả trên QHturbo, kể cả thông báo lỗi, warning và thứ tự phần tử mảng.
 2. **Không phá ABI extension** (`ZEND_MODULE_API_NO`, cấu trúc `zval`, `zend_object`, `HashTable` công khai). Bản vá nào cần đổi ABI phải ghi rõ trong `patches/<nhánh>/` và CHANGELOG, và không được vào bản `stable` nếu chưa duyệt.
 3. **Mỗi bản vá chỉ áp dụng cho nhánh đã kiểm thử.** Một tối ưu cho 8.5 không tự động áp sang 7.4. Muốn port sang nhánh khác thì tạo patch riêng trong `patches/<nhánh>/`, chạy lại PHPT và benchmark của nhánh đó.
-4. **Tối ưu ở mức trình biên dịch (PGO/LTO) áp dụng cho mọi nhánh**, vì không đổi mã nguồn. Vẫn phải chạy PHPT trên binary đã tối ưu để phát hiện lỗi compiler.
+4. **Tối ưu ở mức trình biên dịch (PGO) áp dụng cho mọi nhánh**, vì không đổi mã nguồn. Vẫn phải chạy PHPT trên binary đã tối ưu để phát hiện lỗi compiler.
 5. **Mặc định an toàn:** JIT và các cấu hình mạnh tay để tắt trong cấu hình mẫu cho đến khi benchmark của chính ứng dụng chứng minh có lợi.
 
 ## 3. Cổng kiểm tra tương thích

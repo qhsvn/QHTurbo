@@ -2,5 +2,8 @@
 /php-src/
 /worktrees/
 /build/
-# Raw benchmark output; summaries in results/*.md are committed
-/results/**/raw/
+# Raw output: keep the small per-run samples (results.json), not test logs
+# or the compiled Go benchmark binaries.
+/results/**/raw/*
+!/results/**/raw/results.json
+__pycache__/

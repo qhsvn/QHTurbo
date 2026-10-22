@@ -6,7 +6,7 @@ QHturbo **không phải bản fork viết lại PHP**. Nó gồm:
 
 1. **Mã nguồn PHP chính thức** (`php-src`) ghim theo tag của từng nhánh 7.4 → 8.5.
 2. **Chuỗi bản vá** (`patches/<nhánh>/series`), áp lên tag đó theo thứ tự. Mỗi bản vá nhỏ, có mã công việc (`QHT-ENG-001-...`) và đi kèm số đo.
-3. **Quy trình build tối ưu**: cùng mã nguồn, nhưng biên dịch bằng **LTO** (Link-Time Optimization) và **PGO** (Profile-Guided Optimization).
+3. **Quy trình build tối ưu**: cùng mã nguồn, nhưng biên dịch bằng **PGO** (Profile-Guided Optimization). Không dùng LTO vì LTO của GCC xung đột với global register variables của Zend VM (xem `logs/issues.md`, ISSUE-001).
 4. **Cấu hình runtime** (OPcache, JIT, preload, FPM) đã đo đạc.
 5. **Bộ đo và kiểm thử** để chứng minh mọi thay đổi.
 
@@ -20,14 +20,14 @@ config/versions/8.5.env ──► bootstrap.sh ──► php-src (shallow, tag �
                     ┌───────────────────────────┼─────────────────────────────┐
                     ▼                           ▼                             ▼
      worktrees/8.5/baseline        worktrees/8.5/qhturbo          worktrees/8.5/qhturbo-pgo
-     tag gốc, -O2                  tag + patches/8.5, -O2         tag + patches/8.5, -O2 + LTO + PGO
+     tag gốc, -O2                  tag + patches/8.5, -O2         tag + patches/8.5, -O2 + PGO
                     │                           │                             │
                     ▼                           ▼                             ▼
      build/8.5/baseline/bin/php    build/8.5/qhturbo/bin/php      build/8.5/qhturbo-pgo/bin/php
 ```
 
 - `baseline` so với `qhturbo`: tách riêng tác dụng của **bản vá mã nguồn**.
-- `qhturbo` so với `qhturbo-pgo`: tách riêng tác dụng của **trình biên dịch** (LTO + PGO).
+- `qhturbo` so với `qhturbo-pgo`: tách riêng tác dụng của **trình biên dịch** (PGO).
 - Mỗi binary có `BUILD-INFO.txt`: tag, commit, danh sách patch, cờ configure, sha256, phiên bản gcc.
 
 ### PGO hoạt động thế nào
@@ -42,7 +42,7 @@ PGO không đổi ngữ nghĩa chương trình, chỉ đổi cách bố trí mã
 
 | Lớp | Cách làm trong QHturbo | Trạng thái |
 |---|---|---|
-| Trình biên dịch C | LTO + PGO (mọi nhánh 7.4 → 8.5) | Đã có, đã đo trên 8.5 và 7.4 |
+| Trình biên dịch C | PGO (mọi nhánh 7.4 → 8.5) | Đã có, đã đo trên 8.5 và 7.4 |
 | OPcache / JIT | Cấu hình `config/ini/` + đo JIT on/off | Đã có cấu hình và số đo CLI |
 | Zend VM / opcode | Bản vá C trong `patches/<nhánh>/` | Chưa có bản vá được chấp nhận (Phase 2) |
 | Bộ nhớ / HashTable | Bản vá C | Chưa bắt đầu (Phase 3) |

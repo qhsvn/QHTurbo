@@ -33,7 +33,7 @@ Tập **huấn luyện PGO** (`benchmarks/training/` + `Zend/micro_bench.php` + 
 - Nếu stdout của một đối thủ khác baseline, kết quả bị đánh dấu `INVALID` và **không được dùng**.
 - Tổng hợp: trung bình nhân (geometric mean) tốc độ trên mọi workload.
 
-Mỗi báo cáo `results/<ngày>-.../summary.md` ghi đủ: CPU, số vCPU, RAM, OS, kernel, gcc, commit QHturbo, tag upstream, sha256 của binary, số vòng và warm-up. Dữ liệu thô nằm trong `raw/results.json` (không commit).
+Mỗi báo cáo `results/<ngày>-.../summary.md` ghi đủ: CPU, số vCPU, RAM, OS, kernel, gcc, commit QHturbo, tag upstream, sha256 của binary, số vòng và warm-up. Từng lần đo (thời gian, RSS) nằm trong `raw/results.json`, file này được commit để kiểm tra lại được.
 
 ## 3. Kiểm tra A/A (độ nhiễu)
 

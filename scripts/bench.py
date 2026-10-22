@@ -141,23 +141,26 @@ def measure(contenders, workloads, size, runs, warmup):
     return results
 
 
-def fmt_ratio(base, other):
+def fmt_ratio(base, other, factor=False):
     lo, hi = bootstrap_ci_ratio(base["samples"], other["samples"])
     ratio = other["median"] / base["median"]
-    speed = (1 / ratio - 1) * 100
     sig = "" if lo <= 1.0 <= hi else (" ✔" if ratio < 1 else " ✘")
-    return f"{speed:+.1f}%{sig}"
+    if factor:
+        # "2.50× faster" reads better than "+150%" for big gaps.
+        return f"{1 / ratio:.2f}×{sig}"
+    return f"{(1 / ratio - 1) * 100:+.1f}%{sig}"
 
 
-def write_report(out_dir, title, meta, results, labels, base_label):
+def write_report(out_dir, title, meta, results, labels, base_label, factor=False):
     out_dir.mkdir(parents=True, exist_ok=True)
     (out_dir / "raw").mkdir(exist_ok=True)
     (out_dir / "raw" / "results.json").write_text(json.dumps({"meta": meta, "results": results}, indent=1))
     lines = [f"# {title}", ""]
     for k, v in meta.items():
         lines.append(f"- **{k}**: {v}")
+    speed = "speed factor (>1 = faster)" if factor else "speed-up"
     lines += ["", "Median wall time in seconds (lower is better), peak RSS in MiB. "
-              f"Speed-up is relative to `{base_label}`; ✔/✘ = 95% bootstrap CI of the "
+              f"{speed[0].upper() + speed[1:]} is relative to `{base_label}`; ✔/✘ = 95% bootstrap CI of the "
               "median ratio excludes 1.0 (faster/slower), no mark = not significant.", ""]
     cols = (["Workload"] + [f"{l} (s)" for l in labels]
             + [f"{l} vs {base_label}" for l in labels if l != base_label]
@@ -169,13 +172,15 @@ def write_report(out_dir, title, meta, results, labels, base_label):
         for l in labels:
             cells.append(f"{res[l]['median']:.3f}" + ("" if res[l]["valid"] else " INVALID"))
             geo[l].append(res[l]["median"] / res[base_label]["median"])
-        cells += [fmt_ratio(res[base_label], res[l]) for l in labels if l != base_label]
+        cells += [fmt_ratio(res[base_label], res[l], factor) for l in labels if l != base_label]
         cells += [f"{res[l]['rss_mib']:.0f}" for l in labels]
         cells.append(f"{max(res[l]['cv'] for l in labels) * 100:.1f}%")
         lines.append(f"| {wl} | " + " | ".join(cells) + " |")
-    lines += ["", "**Geometric mean speed-up vs " + base_label + ":** " + ", ".join(
-        f"{l}: {(1 / statistics.geometric_mean(g) - 1) * 100:+.1f}%"
-        for l, g in geo.items() if l != base_label), ""]
+    def geo_fmt(g):
+        m = statistics.geometric_mean(g)
+        return f"{1 / m:.2f}×" if factor else f"{(1 / m - 1) * 100:+.1f}%"
+    lines += ["", f"**Geometric mean {speed} vs {base_label}:** " + ", ".join(
+        f"{l}: {geo_fmt(g)}" for l, g in geo.items() if l != base_label), ""]
     (out_dir / "summary.md").write_text("\n".join(lines))
     print("\n".join(lines))
 
@@ -202,40 +207,54 @@ def cmd_php(a):
 
 
 def cmd_cross(a):
+    """PHP builds (one or more branches) against other languages, or only
+    against each other with --langs php (e.g. --php 7.4,8.5)."""
     workloads = a.workloads.split(",") if a.workloads else sorted(
         p.name for p in WORKLOADS.iterdir() if (p / "main.php").exists())
-    gobin = Path(a.out or ROOT / "results" / "cross") / "gobin"
+    versions = a.php.split(",")
+    langs = a.langs.split(",")
+    tag = "-".join(versions)
+    out = Path(a.out or ROOT / "results" / f"{datetime.date.today()}-cross-php{tag}-{'-'.join(langs)}")
     contenders = {}
-    modes = [m for m in a.modes.split(",") if not (m == "jit" and a.php.startswith("7."))]
-    for mode in modes:
-        contenders[f"php{a.php}-{a.variant}-{mode}"] = (php_cmd(a.php, a.variant, mode), "php")
-    if shutil.which("python3"):
+    for ver in versions:
+        for mode in a.modes.split(","):
+            if mode == "jit" and ver.startswith("7."):
+                continue  # no JIT before PHP 8.0
+            contenders[f"php{ver}-{mode}"] = (php_cmd(ver, a.variant, mode), "php")
+    if "python" in langs and shutil.which("python3"):
         contenders["python3"] = (["python3"], "py")
-    if shutil.which("node"):
+    if "node" in langs and shutil.which("node"):
         contenders["node"] = (["node"], "js")
-    if shutil.which("go"):
-        # Build each Go workload once; run the binary directly.
+    if "go" in langs and shutil.which("go"):
+        # Build each Go workload once (compile time excluded) and run the
+        # binary through a shim that picks it from the workload path.
+        gobin = out / "raw" / "gobin"
         gobin.mkdir(parents=True, exist_ok=True)
         for wl in workloads:
             subprocess.run(["go", "build", "-o", str(gobin / wl), str(WORKLOADS / wl / "main.go")], check=True)
-        contenders["go"] = None
-    labels = list(contenders)
-    if "go" in contenders:
-        # Go needs a per-workload binary, so measure it through a tiny shim.
         shim = gobin / "run.sh"
         shim.write_text('#!/bin/sh\nwl=$(basename "$(dirname "$1")"); shift\nexec "$(dirname "$0")/$wl" "$@"\n')
         shim.chmod(0o755)
         contenders["go"] = ([str(shim)], "go")
+    labels = list(contenders)
+
+    def version_of(cmd):
+        r = subprocess.run(cmd, capture_output=True, text=True)
+        return (r.stdout or r.stderr).strip().splitlines()[0] if r.returncode == 0 else "?"
+
     meta = machine_info() | {
-        "php": f"{a.php} {a.variant}", "runs": a.runs, "warmup": a.warmup, "size": a.size,
-        "python": subprocess.run(["python3", "-V"], capture_output=True, text=True).stdout.strip(),
-        "node": subprocess.run(["node", "-v"], capture_output=True, text=True).stdout.strip(),
-        "go": subprocess.run(["go", "version"], capture_output=True, text=True).stdout.strip(),
-        "note": "Go runs a prebuilt binary (compile time excluded); others include interpreter start-up.",
+        "php": ", ".join(f"{v} ({a.variant}: {version_of(php_cmd(v, a.variant, 'interp') + ['-v'])})" for v in versions),
+        "runs": a.runs, "warmup": a.warmup, "size": a.size,
     }
+    if "python3" in contenders:
+        meta["python"] = version_of(["python3", "-V"])
+    if "node" in contenders:
+        meta["node"] = version_of(["node", "-v"])
+    if "go" in contenders:
+        meta["go"] = version_of(["go", "version"]) + " (prebuilt binary, compile time excluded)"
+    meta["note"] = "Single-threaded CPU workloads; interpreters include start-up time."
     res = measure(contenders, workloads, a.size, a.runs, a.warmup)
-    out = Path(a.out or ROOT / "results" / f"{datetime.date.today()}-cross-php{a.php}")
-    write_report(out, f"Cross-language comparison (PHP {a.php} {a.variant})", meta, res, labels, labels[0])
+    write_report(out, f"Comparison: {', '.join(labels)}", meta, res, labels, labels[0], factor=True)
 
 
 def main():
@@ -252,7 +271,9 @@ def main():
         s.add_argument("--out")
     sub.choices["php"].add_argument("--variants", default="baseline,qhturbo")
     sub.choices["php"].add_argument("--name", default="variants")
-    sub.choices["cross"].add_argument("--variant", default="qhturbo-pgo")
+    sub.choices["cross"].add_argument("--variant", default="baseline")
+    sub.choices["cross"].add_argument("--langs", default="php,python,node,go",
+                                      help="which languages to include besides PHP")
     a = p.parse_args()
     cmd_php(a) if a.cmd == "php" else cmd_cross(a)
 
