@@ -54,3 +54,10 @@
 - **Phát hiện:** CI (GitHub Actions) báo lỗi bộ test runtime trên PHP 8.3/8.4/8.5. Tái hiện được ở máy build khi bật OPcache + JIT cho CLI (giống cấu hình mặc định của `setup-php`): test reload SIGHUP có 1 request bị đóng mà không có phản hồi.
 - **Nguyên nhân:** (1) nếu worker bắt đầu dừng giữa lúc `accept()` và lần đọc đầu tiên, vòng lặp phục vụ thoát ngay; (2) khi dừng, worker đóng **mọi** kết nối đang chờ, kể cả kết nối mới chưa gửi request.
 - **Sửa:** kết nối mới luôn được phục vụ request đầu tiên; khi dừng chỉ đóng kết nối keep-alive **đang rảnh**. Test chạy lặp 16 lần (có và không có JIT) đều pass.
+
+## ISSUE-007 — Một lần fail đơn lẻ của test runtime trên CI PHP 8.5 (đang theo dõi)
+
+- **Ngày:** 2026-10-22
+- **Hiện tượng:** run CI ở commit `0666733` (sau khi sửa ISSUE-006): job `workloads (8.5)`, bước runtime tests fail một lần. Không đọc được log vì storage log của GitHub bị chặn từ máy build.
+- **Đã làm:** test runner giờ in lỗi thành annotation `::error` (đọc được qua API). Sau đó 3 lần chạy CI liên tiếp (1 lần mới + 2 lần re-run) đều xanh trên 7.4 → 8.5, và 16 lần chạy ở máy build (có/không JIT) cũng pass.
+- **Trạng thái:** mở. Nếu tái diễn, annotation sẽ cho biết test nào. Nghi vấn: ngưỡng thời gian trong test concurrency/reload trên runner 2 vCPU.
