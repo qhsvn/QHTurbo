@@ -82,6 +82,37 @@ web_reload() {
   sleep 1
 }
 
+ext_list() { "$1" -m 2>/dev/null | grep -v '^\[' | grep -v '^$' | tr 'A-Z' 'a-z' | sort -u; }
+missing_exts() { # aaPanel PHP tag (e.g. 84) -> extensions it has that QHturbo lacks
+  local panel_php="$ROOT/www/server/php/$1/bin/php"
+  [[ -x "$panel_php" && -x "$PREFIX/bin/php" ]] || return 0
+  comm -23 <(ext_list "$panel_php") <(ext_list "$PREFIX/bin/php") | tr '\n' ' '
+}
+# Error logs PHP may write to while a site is tested.
+site_logs() { printf '%s\n' "/var/log/qhturbo/php$TAG-fpm.log" "$ROOT"/www/wwwlogs/"$1"*error*log "$ROOT"/www/wwwlogs/"$1".log; }
+log_sizes() { local f; while read -r f; do if [[ -f "$f" ]]; then echo "$f $(stat -c %s "$f")"; fi; done < <(site_logs "$1"); }
+# After a failed switch: show what PHP logged since $2 (log_sizes output) and
+# what the site's original PHP has that QHturbo lacks.
+explain_failure() { # site sizes current
+  local site="$1" sizes="$2" current="$3" f size new tag missing
+  new="$(while read -r f size; do
+           [[ -f "$f" ]] && tail -c +"$((size + 1))" "$f"
+         done <<< "$sizes" | grep -aE 'PHP (Fatal|Parse|Warning|Deprecated)|Uncaught|Got error|FastCGI sent' | tail -n 8 || true)"
+  if [[ -n "$new" ]]; then
+    warn "PHP errors while the site ran on QHturbo $PHPV:"
+    printf '    %s\n' "${new//$'\n'/$'\n'    }" >&2
+  else
+    warn "no PHP error was logged; look at the site's own logs (e.g. storage/logs, wp-content/debug.log)"
+  fi
+  tag="$(grep -oE '(php-cgi-|enable-php-)[0-9]+' <<< "$current" | grep -oE '[0-9]+$' || true)"
+  if [[ -n "$tag" ]]; then
+    missing="$(missing_exts "$tag")"
+    [[ -n "${missing// /}" ]] && warn "the site's PHP ($tag) has extensions QHturbo $PHPV lacks: $missing (add: sudo $QHT_ROOT/scripts/install-ext.sh <name> --php=$PHPV)"
+    [[ "$tag" != "$TAG" ]] && warn "the site ran on PHP ${tag:0:1}.${tag:1}; for the fewest surprises use the same version: $0 install --php=${tag:0:1}.${tag:1}"
+  fi
+  return 0
+}
+
 # How a vhost hands PHP to PHP-FPM:
 #   nginx:  include enable-php-84.conf;   (aaPanel's per-version include)
 #   apache: SetHandler "proxy:unix:/tmp/php-cgi-84.sock|fcgi://localhost"
@@ -145,17 +176,18 @@ do_check() {
   fi
   if [[ -x "$PREFIX/sbin/php-fpm" ]]; then
     log "QHturbo PHP $PHPV already installed in $PREFIX"
-    local panel_php="$ROOT/www/server/php/$TAG/bin/php" missing
-    if [[ -x "$panel_php" ]]; then
-      missing="$(comm -23 <("$panel_php" -m 2>/dev/null | grep -v '^\[' | grep -v '^$' | tr 'A-Z' 'a-z' | sort -u) \
-                          <("$PREFIX/bin/php" -m 2>/dev/null | grep -v '^\[' | grep -v '^$' | tr 'A-Z' 'a-z' | sort -u) | tr '\n' ' ')"
+    local d t missing
+    for d in "$ROOT"/www/server/php/*/; do
+      t="$(basename "$d")"
+      [[ -x "$d/bin/php" ]] || continue
+      missing="$(missing_exts "$t")"
       if [[ -n "${missing// /}" ]]; then
-        warn "extensions in aaPanel PHP $PHPV but not in QHturbo: $missing"
-        warn "add them with: sudo scripts/install-ext.sh <name> --php=$PHPV"
+        warn "extensions in aaPanel PHP $t but not in QHturbo $PHPV: $missing"
       else
-        log "QHturbo has every extension that aaPanel PHP $PHPV has"
+        log "QHturbo $PHPV has every extension that aaPanel PHP $t has"
       fi
-    fi
+    done
+    log "add a missing extension with: sudo scripts/install-ext.sh <name> --php=$PHPV"
   else
     log "QHturbo PHP $PHPV not installed yet: run '$0 install --php=$PHPV'"
   fi
@@ -340,6 +372,7 @@ do_enable() {
   fi
 
   local before; before="$(http_code "$site")"
+  local sizes; sizes="$(log_sizes "$site")"
   cp -p "$vhost" "$vhost.qhturbo-bak"
   echo "$current" > "$vhost.qhturbo-orig"
   switch_to_qhturbo "$vhost"
@@ -353,7 +386,8 @@ $out"
   local after; after="$(http_code "$site")"
   if [[ "$after" =~ ^5 || "$after" == 000 ]] && [[ ! "$before" =~ ^5 ]]; then
     cp -p "$vhost.qhturbo-bak" "$vhost"; rm -f "$vhost.qhturbo-orig"; web_reload
-    die "$site answered HTTP $after with QHturbo (was $before); rolled back. Check /var/log/qhturbo/ and the site's error log"
+    explain_failure "$site" "$sizes" "$current"
+    die "$site answered HTTP $after with QHturbo (was $before); rolled back to aaPanel PHP"
   fi
   log "$site now runs on QHturbo PHP $PHPV ($current -> $(qhturbo_label "$vhost")); HTTP $before -> $after"
   log "watch: tail -f $ROOT/www/wwwlogs/$site*error*log /var/log/qhturbo/php$TAG-fpm.log"

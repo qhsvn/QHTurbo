@@ -151,6 +151,16 @@ chown "$owner" "$QSOCK"; chmod "$mode" "$QSOCK"
 [[ "$(site | cut -d'|' -f1)" == "$panel_version" ]] && ok "automatic rollback kept the site on aaPanel PHP" || bad "rollback: $(site)"
 cmp -s "$vhost" "$SIM/original.conf" && ok "vhost restored after rollback" || bad "vhost not restored"
 
+# Code that fails only on QHturbo's PHP: enable rolls back and says why.
+idx="$SIM/www/wwwroot/test.local/index.php"
+cp -p "$idx" "$idx.orig"
+printf '%s\n' '<?php' 'if (PHP_VERSION_ID >= 80000) { qht_function_missing_on_new_php(); }' 'echo PHP_VERSION;' > "$idx"
+if out="$("$A" enable test.local --php="$PHPV" "$url" 2>&1)"; then bad "enable should fail when the site errors on QHturbo"; else ok "enable refused (HTTP 500)"; fi
+grep -q 'qht_function_missing_on_new_php' <<< "$out" && ok "rollback shows the PHP error" || bad "no PHP error shown: $out"
+grep -q 'the site ran on PHP 8.4' <<< "$out" && ok "rollback suggests the site's PHP version" || bad "no version hint: $out"
+mv "$idx.orig" "$idx"
+cmp -s "$vhost" "$SIM/original.conf" && ok "vhost restored" || bad "vhost not restored"
+
 echo
 echo "$pass passed, $fail failed"
 exit $(( fail > 0 ))
