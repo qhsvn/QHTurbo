@@ -31,14 +31,24 @@ final class Options
         public int $maxHeaderBytes = 65536,
         public int $maxBodyBytes = 8 * 1024 * 1024,
         public int $backlog = 1024,
+        /** Open connections per worker; stream_select() cannot watch descriptors above 1024. */
+        public int $maxConnections = 512,
         /** Run a framework application directory: '' | 'laravel' | 'symfony'. */
         public string $framework = '',
     ) {
     }
 
+    /** Options that take no value. */
+    private const FLAGS = ['superglobals', 'strict-state', 'debug', 'help'];
+
     /** @param array<string, string|false|list<string|false>> $opts getopt() result */
     public static function fromCli(array $opts): self
     {
+        foreach ($opts as $name => $value) {
+            if (!in_array($name, self::FLAGS, true) && ($value === false || $value === '')) {
+                throw new \InvalidArgumentException("--$name needs a value (--$name=...)");
+            }
+        }
         $o = new self();
         $str = static fn (string $k, string $d): string => isset($opts[$k]) ? (string) (is_array($opts[$k]) ? end($opts[$k]) : $opts[$k]) : $d;
         $o->host = $str('host', $o->host);
@@ -55,6 +65,18 @@ final class Options
         if (isset($opts['max-body'])) {
             $o->maxBodyBytes = self::bytes($str('max-body', '8M'));
         }
+        $o->maxConnections = (int) $str('max-connections', (string) $o->maxConnections);
+        foreach (['workers' => $o->workers, 'max-requests' => $o->maxRequests, 'state-check-every' => $o->stateCheckEvery] as $name => $n) {
+            if ($n < 0) {
+                throw new \InvalidArgumentException("--$name must be >= 0, got $n");
+            }
+        }
+        if ($o->port < 1 || $o->port > 65535) {
+            throw new \InvalidArgumentException("--port must be 1-65535, got {$o->port}");
+        }
+        if ($o->maxConnections < 1 || $o->maxConnections > 1000) {
+            throw new \InvalidArgumentException("--max-connections must be 1-1000 (stream_select() limit), got {$o->maxConnections}");
+        }
         if (!in_array($o->framework, ['', 'laravel', 'symfony'], true)) {
             throw new \InvalidArgumentException("--framework must be laravel or symfony, got {$o->framework}");
         }
@@ -67,12 +89,14 @@ final class Options
         return $o;
     }
 
+    /** "512", "64K", "256M", "256MB", "1G", "1GiB" -> bytes. */
     public static function bytes(string $value): int
     {
-        $value = trim($value);
-        $unit = strtoupper(substr($value, -1));
-        $n = (int) $value;
-        return match ($unit) {
+        if (!preg_match('/^\s*(\d+)\s*(?:([KMG])(?:i?B)?|B)?\s*$/i', $value, $m)) {
+            throw new \InvalidArgumentException("Invalid size: $value (examples: 512K, 256M, 1G)");
+        }
+        $n = (int) $m[1];
+        return match (strtoupper($m[2] ?? '')) {
             'G' => $n * 1024 ** 3,
             'M' => $n * 1024 ** 2,
             'K' => $n * 1024,

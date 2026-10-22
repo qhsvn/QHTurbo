@@ -5,6 +5,10 @@
 #   QHT_PHP=8.5 scripts/package.sh [--variant=baseline] [--user=www --group=www]
 # Output: $QHT_LAB/dist/qhturbo-php<version>-<distro>-<arch>.tar.gz (+ .sha256)
 # On the server:  sudo tar -xzf <file> -C /   (creates /opt/qhturbo/<php>)
+#                 sudo /opt/qhturbo/<php>/share/qhturbo/setup.sh
+# The configuration ships in share/qhturbo/etc.dist, so extracting a newer
+# package never overwrites the server's etc/; setup.sh copies missing files
+# and sizes PHP-FPM for the server's CPU count.
 export QHT_PROFILE=full
 source "$(dirname "$0")/lib.sh"
 
@@ -31,7 +35,13 @@ name="qhturbo-php$version-$distro-$(uname -m)"
 find "$root/bin" "$root/sbin" "$root/lib" -type f \( -perm -u+x -o -name '*.so' \) \
   -exec sh -c 'file "$1" | grep -q ELF && strip --strip-debug "$1"' _ {} \;
 
+# Configuration: shipped as defaults, installed by setup.sh on the target.
+mv "$root/etc" "$root/share/qhturbo/etc.dist"
+mkdir -p "$root/etc"
+install -m 755 "$QHT_ROOT/scripts/pkg-setup.sh" "$root/share/qhturbo/setup.sh"
+
 mkdir -p "$QHT_LAB/dist"
 tar -C "$stage" -czf "$QHT_LAB/dist/$name.tar.gz" "${QHT_PREFIX#/}"
 (cd "$QHT_LAB/dist" && sha256sum "$name.tar.gz" > "$name.tar.gz.sha256")
 log "Package: $QHT_LAB/dist/$name.tar.gz ($(du -h "$QHT_LAB/dist/$name.tar.gz" | cut -f1))"
+log "On the server: tar -xzf $name.tar.gz -C / && $QHT_PREFIX/share/qhturbo/setup.sh"

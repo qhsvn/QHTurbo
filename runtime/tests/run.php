@@ -109,6 +109,61 @@ test('connect to a closed port fails', function (): void {
     }
 });
 
+test('pool: a waiter that timed out never receives a connection', function (): void {
+    Loop::reset();
+    $pool = new QHTurbo\Runtime\Pool\Pool(static fn () => new stdClass(), 1, acquireTimeout: 0.05);
+    $conn = await(async(fn () => $pool->acquire()));
+    $waiter = async(function () use ($pool) {
+        try {
+            $pool->acquire();
+            return 'got';
+        } catch (TimeoutException) {
+            return 'timeout';
+        }
+    });
+    // Released in the same tick as the waiter's timeout fires.
+    async(fn () => Loop::get()->delay(0.05, fn () => $pool->release($conn)));
+    $result = await($waiter);
+    $stats = $pool->stats();
+    check($result === 'timeout' || $result === 'got', "result $result");
+    if ($result === 'timeout') {
+        check($stats['idle'] === 1 && $stats['size'] === 1, 'connection lost: ' . json_encode($stats));
+    }
+    check(await(async(fn () => $pool->acquire())) === $conn, 'connection not reusable');
+});
+
+test('options: sizes and validation', function (): void {
+    $O = QHTurbo\Runtime\Worker\Options::class;
+    check($O::bytes('256M') === 256 << 20 && $O::bytes('256MB') === 256 << 20 && $O::bytes('1GiB') === 1 << 30
+        && $O::bytes('64k') === 64 << 10 && $O::bytes('512') === 512, 'bytes()');
+    foreach ([['memory-limit' => 'lots'], ['framework' => false], ['workers' => '-1'], ['port' => '0'], ['max-connections' => '5000']] as $bad) {
+        try {
+            $O::fromCli($bad);
+            check(false, 'accepted ' . json_encode($bad));
+        } catch (InvalidArgumentException) {
+        }
+    }
+    check($O::fromCli(['debug' => false])->debug, 'flag');
+});
+
+test('response: framing headers belong to the server', function (): void {
+    $R = QHTurbo\Runtime\Http\Response::class;
+    $raw = (new $R(200, ['CONTENT-LENGTH' => '999', 'transfer-encoding' => 'chunked', 'X-A' => "a\r\nInjected: 1"], 'hello'))->toRaw(true);
+    check(substr_count(strtolower($raw), 'content-length:') === 1 && str_contains($raw, "Content-Length: 5\r\n"), $raw);
+    check(!str_contains(strtolower($raw), 'transfer-encoding') && !str_contains($raw, "\r\nInjected"), $raw);
+    $raw = (new $R(204, [], ''))->toRaw(true);
+    check(!str_contains(strtolower($raw), 'content-length'), "204 with Content-Length:\n$raw");
+    $raw = (new $R(200, ['Content-Length' => '42'], ''))->toRaw(true, true);
+    check(str_contains($raw, "Content-Length: 42\r\n") && str_ends_with($raw, "\r\n\r\n"), "HEAD length:\n$raw");
+});
+
+test('config: URI user/password decoding', function (): void {
+    $c = QHTurbo\Runtime\Mysql\Config::fromUri('mysql://us%40r:p%2Bq+r@db.local:3307/shop?pool=3');
+    check($c->user === 'us@r' && $c->password === 'p+q+r' && $c->port === 3307 && $c->poolSize === 3, json_encode($c));
+    new QHTurbo\Runtime\Redis\Client('unix:///run/redis/redis.sock?db=2');
+    new QHTurbo\Runtime\Redis\Client('redis://:p+w@127.0.0.1:6379/1');
+});
+
 // --------------------------------------------------- redis / mysql ----
 // Need servers: QHT_TEST_REDIS (default redis://127.0.0.1:6379/15) and
 // QHT_TEST_MYSQL (default mysql://qht:qhtpass@127.0.0.1:3306/qht).
@@ -272,6 +327,7 @@ test('mysql: query timeout discards the connection, loop survives', function ():
         } catch (QHTurbo\Runtime\Async\TimeoutException) {
         }
         check($db->poolStats()['size'] === 0, 'timed-out connection kept');
+        check(Loop::get()->stats()['timers'] === 0, 'poll timer left running: ' . json_encode(Loop::get()->stats()));
         check($db->query('SELECT 42')->value() === 42, 'pool did not recover');
         delay(0.1); // the poller must not touch the closed connection
     }));
@@ -290,6 +346,30 @@ test('mysql: recovers after the server kills the connection', function (): void 
             // allowed: lost connection mid-query is not retried automatically
         }
         check($db->query('SELECT 7')->value() === 7, 'no reconnect');
+    }));
+});
+
+test('mysql: SQL comments, "--" operators and COMMIT WORK', function (): void {
+    Loop::reset();
+    $logged = [];
+    $db = mysqlOrSkip(1, 30.0, function (string $m) use (&$logged) {
+        $logged[] = $m;
+    });
+    await(async(function () use ($db, &$logged) {
+        check($db->query('SELECT 5--?', [1])->value() === 6, '"5--?" is 5 minus -1');
+        check($db->query("SELECT ? -- comment with ?\n", [7])->value() === 7, 'comment placeholder');
+        $db->withConnection(function ($c) {
+            $c->query('BEGIN');
+            $c->query('COMMIT WORK');
+        });
+        $db->withConnection(function ($c) {
+            $c->query('START TRANSACTION');
+            $c->query('SAVEPOINT s1');
+            $c->query('ROLLBACK TO SAVEPOINT s1');
+            check($c->inTransaction(), 'ROLLBACK TO SAVEPOINT ended the transaction');
+            $c->query('ROLLBACK WORK');
+        });
+        check($logged === [], 'false open-transaction reports: ' . json_encode($logged));
     }));
 });
 
@@ -474,9 +554,123 @@ test('state: superglobals for legacy code, reset hooks and ini restore', functio
         get($srv->port, '/change-tz');
         [, , $b] = get($srv->port, '/tz');
         check($b === 'UTC', "ini leaked: $b");
+        [, , $b] = get($srv->port, '/boot-server');
+        check($b === 'yes', "\$_SERVER values set during the bootstrap were lost: $b");
     } finally {
         $srv->stop();
     }
+});
+
+test('server: Content-Length validation and Expect: 100-continue', function () use ($fixtures, &$port): void {
+    $srv = new TestServer("$fixtures/app.php", [], ++$port);
+    try {
+        foreach (['-1', '1e3', '5, 6'] as $bad) {
+            [$s] = http($srv->port, "POST /length HTTP/1.1\r\nHost: t\r\nContent-Length: $bad\r\nConnection: close\r\n\r\nhello");
+            check($s === 400, "Content-Length '$bad': $s");
+        }
+        [$s] = http($srv->port, "POST /length HTTP/1.1\r\nHost: t\r\nContent-Length: 5\r\nContent-Length: 6\r\nConnection: close\r\n\r\nhello!");
+        check($s === 400, "conflicting Content-Length: $s");
+        [$s, , $b] = http($srv->port, "POST /length HTTP/1.1\r\nHost: t\r\nContent-Length: 5\r\nContent-Length: 5\r\nConnection: close\r\n\r\nhello");
+        check($s === 200 && $b === '5', "repeated equal Content-Length: $s $b");
+        // Expect: the server must answer 100 before the client sends the body.
+        $sock = stream_socket_client("tcp://127.0.0.1:$srv->port");
+        stream_set_timeout($sock, 3);
+        fwrite($sock, "POST /length HTTP/1.1\r\nHost: t\r\nContent-Length: 3\r\nExpect: 100-continue\r\nConnection: close\r\n\r\n");
+        $line = fgets($sock);
+        check($line === "HTTP/1.1 100 Continue\r\n", 'no 100 Continue: ' . var_export($line, true));
+        fgets($sock);
+        fwrite($sock, 'abc');
+        $rest = stream_get_contents($sock);
+        check(str_contains($rest, '200 OK') && str_ends_with($rest, "\r\n\r\n3"), "after 100: $rest");
+        [$s] = http($srv->port, "POST /length HTTP/1.1\r\nHost: t\r\nContent-Length: 0\r\nExpect: magic\r\nConnection: close\r\n\r\n");
+        check($s === 417, "unknown Expect: $s");
+    } finally {
+        $srv->stop();
+    }
+});
+
+test('server: --max-connections pauses accepting', function () use ($fixtures, &$port): void {
+    $srv = new TestServer("$fixtures/app.php", ['--max-connections=2'], ++$port);
+    try {
+        usleep(200_000); // the readiness probe's connection is gone
+        $idle1 = stream_socket_client("tcp://127.0.0.1:$srv->port");
+        $idle2 = stream_socket_client("tcp://127.0.0.1:$srv->port");
+        usleep(200_000);
+        $third = stream_socket_client("tcp://127.0.0.1:$srv->port"); // waits in the backlog
+        fwrite($third, "GET /hello HTTP/1.1\r\nHost: t\r\nConnection: close\r\n\r\n");
+        stream_set_blocking($third, false);
+        usleep(300_000);
+        check(fread($third, 100) === '', 'served beyond the connection limit');
+        fclose($idle1);
+        stream_set_blocking($third, true);
+        stream_set_timeout($third, 3);
+        check(str_contains((string) stream_get_contents($third), 'hello world'), 'not served after a slot freed up');
+        fclose($idle2);
+    } finally {
+        $srv->stop();
+    }
+});
+
+test('server: concurrency > 1 still runs reset hooks', function () use ($fixtures, &$port): void {
+    $srv = new TestServer("$fixtures/app.php", ['--concurrency=4'], ++$port);
+    try {
+        get($srv->port, '/set-user?u=alice');
+        [, , $b] = get($srv->port, '/user');
+        check($b === 'guest', "reset hook did not run: $b");
+    } finally {
+        $srv->stop();
+    }
+});
+
+test('server: reload loads new code; a broken deploy keeps the old workers', function () use ($fixtures, &$port): void {
+    $dir = sys_get_temp_dir() . '/qht-reload-' . getmypid();
+    @mkdir($dir);
+    copy("$fixtures/reload-app.php", "$dir/app.php");
+    file_put_contents("$dir/version.php", "<?php return 'v1';");
+    // As in production: OPcache on, timestamps not checked.
+    $srv = new TestServer("$dir/app.php", ['--workers=2'], ++$port,
+        ['-d', 'opcache.enable_cli=1', '-d', 'opcache.validate_timestamps=0']);
+    $waitFor = static function (string $want) use ($srv): bool {
+        for ($i = 0; $i < 60; $i++) {
+            $seen = [get($srv->port, '/')[2], get($srv->port, '/')[2], get($srv->port, '/')[2]];
+            if (array_unique($seen) === [$want]) {
+                return true;
+            }
+            usleep(100_000);
+        }
+        return false;
+    };
+    try {
+        check($waitFor('v1'), 'v1');
+        file_put_contents("$dir/version.php", "<?php return 'v2';");
+        $srv->signal(SIGHUP);
+        check($waitFor('v2'), "new code not loaded after SIGHUP:\n" . $srv->logSoFar());
+        file_put_contents("$dir/version.php", "<?php return 'v3' this is a syntax error;");
+        $srv->signal(SIGHUP);
+        for ($i = 0; $i < 50 && !str_contains($srv->logSoFar(), 'reload aborted'); $i++) {
+            usleep(100_000);
+        }
+        check(str_contains($srv->logSoFar(), 'reload aborted'), "broken reload not detected:\n" . $srv->logSoFar());
+        for ($i = 0; $i < 10; $i++) {
+            [$s, , $b] = get($srv->port, '/');
+            check($s === 200 && $b === 'v2', "old workers must keep serving: $s $b");
+        }
+    } finally {
+        $srv->stop();
+        @unlink("$dir/app.php");
+        @unlink("$dir/version.php");
+        @rmdir($dir);
+    }
+});
+
+test('server: SIGTERM while workers are still booting stops promptly', function () use ($fixtures, &$port): void {
+    $srv = new TestServer("$fixtures/slow-boot.php", ['--workers=2'], ++$port);
+    usleep(300_000);
+    $srv->signal(SIGTERM);
+    $stopped = $srv->waitExit(2.0);
+    $log = $srv->stop();
+    check($stopped, "master still running 2 s after SIGTERM:\n$log");
+    check(substr_count($log, 'shutting down') === 1, "worker ran the master's SIGTERM handler:\n$log");
 });
 
 run_tests();

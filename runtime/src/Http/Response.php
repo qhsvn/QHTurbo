@@ -54,21 +54,41 @@ final class Response
 
     public function toRaw(bool $keepAlive, bool $headOnly = false): string
     {
-        $out = sprintf("HTTP/1.1 %d %s\r\n", $this->status, self::REASONS[$this->status] ?? 'Status');
-        $headers = $this->headers;
-        $present = array_change_key_case($headers);
-        // The server owns framing headers; the app may add Date if it wants.
-        unset($headers['Content-Length'], $headers['content-length'], $headers['Connection'], $headers['connection']);
-        $headers['Content-Length'] = (string) strlen($this->body);
+        $status = $this->status >= 100 && $this->status <= 999 ? $this->status : 500;
+        $out = sprintf("HTTP/1.1 %d %s\r\n", $status, self::REASONS[$status] ?? 'Status');
+        // The server owns the framing headers (in any letter case); the app
+        // may add Date if it wants.
+        $headers = [];
+        $appLength = null;
+        foreach ($this->headers as $name => $value) {
+            $lower = strtolower((string) $name);
+            if ($lower === 'content-length') {
+                $appLength = is_array($value) ? reset($value) : $value;
+            } elseif ($lower !== 'connection' && $lower !== 'transfer-encoding') {
+                $headers[$name] = $value;
+            }
+        }
+        // No body allowed: 1xx, 204, 304. For HEAD the length is the one a
+        // GET would have: the body's, or the one the app announced with an
+        // empty body (Symfony); unknown = no Content-Length.
+        $noBody = $status < 200 || $status === 204 || $status === 304;
+        if (!$noBody) {
+            if (!$headOnly || $this->body !== '') {
+                $headers['Content-Length'] = (string) strlen($this->body);
+            } elseif ($appLength !== null && ctype_digit((string) $appLength)) {
+                $headers['Content-Length'] = (string) $appLength;
+            }
+        }
         $headers['Connection'] = $keepAlive ? 'keep-alive' : 'close';
-        if (!isset($present['date'])) {
+        if (!isset(array_change_key_case($headers)['date'])) {
             $headers['Date'] = gmdate('D, d M Y H:i:s') . ' GMT';
         }
         foreach ($headers as $name => $value) {
             foreach ((array) $value as $one) {
-                $out .= "$name: $one\r\n";
+                // CR/LF in a header would let request data inject headers.
+                $out .= strtr((string) $name, "\r\n:", '   ') . ': ' . strtr((string) $one, "\r\n", '  ') . "\r\n";
             }
         }
-        return $out . "\r\n" . ($headOnly ? '' : $this->body);
+        return $out . "\r\n" . ($headOnly || $noBody ? '' : $this->body);
     }
 }

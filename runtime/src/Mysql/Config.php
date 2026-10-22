@@ -31,9 +31,10 @@ final class Config
         parse_str($p['query'] ?? '', $q);
         return new self(
             host: $p['host'] ?? '127.0.0.1',
-            user: urldecode($p['user'] ?? 'root'),
-            password: urldecode($p['pass'] ?? ''),
-            database: ltrim($p['path'] ?? '', '/'),
+            // rawurldecode: "+" in a password is a plus, not a space.
+            user: rawurldecode($p['user'] ?? 'root'),
+            password: rawurldecode($p['pass'] ?? ''),
+            database: rawurldecode(ltrim($p['path'] ?? '', '/')),
             port: (int) ($p['port'] ?? 3306),
             socket: isset($q['socket']) ? (string) $q['socket'] : null,
             charset: (string) ($q['charset'] ?? 'utf8mb4'),

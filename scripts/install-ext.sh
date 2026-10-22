@@ -42,9 +42,9 @@ elif [[ -n "${GITHUB[$ext]:-}" ]]; then
   # Latest stable release tag (no alpha/beta/RC), or the requested version.
   tags="$(git ls-remote --tags --refs "$repo" | awk -F/ '{print $3}')"
   if [[ -n "$version" ]]; then
-    tag="$(grep -xE "v?$version" <<< "$tags" | head -1)"
+    tag="$(grep -xE "v?$version" <<< "$tags" | head -1 || true)"
   else
-    tag="$(grep -E '^v?[0-9]+\.[0-9]+\.[0-9]+$' <<< "$tags" | sort -V | tail -1)"
+    tag="$(grep -E '^v?[0-9]+\.[0-9]+\.[0-9]+$' <<< "$tags" | sort -V | tail -1 || true)"
   fi
   [[ -n "$tag" ]] || die "no matching release tag in $repo"
   log "PECL unreachable; cloning $repo at $tag"

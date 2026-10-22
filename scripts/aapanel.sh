@@ -154,18 +154,28 @@ sync_aapanel_ini() {
   {
     echo "; Copied by scripts/aapanel.sh from $src on $(date -u '+%Y-%m-%d %H:%M UTC')."
     echo "; Re-run '$0 sync-ini' after changing PHP settings in aaPanel."
-    grep -E "^[[:space:]]*($keys)[[:space:]]*=" "$src" | sed 's/^[[:space:]]*//'
+    # "|| true": a setting missing from php.ini is normal and must not stop
+    # the script (set -e + pipefail).
+    grep -E "^[[:space:]]*($keys)[[:space:]]*=" "$src" | sed 's/^[[:space:]]*//' || true
     if grep -qE '^[[:space:]]*session\.save_handler[[:space:]]*=[[:space:]]*files' "$src"; then
-      grep -E '^[[:space:]]*session\.save_path[[:space:]]*=' "$src" | sed 's/^[[:space:]]*//'
+      grep -E '^[[:space:]]*session\.save_path[[:space:]]*=' "$src" | sed 's/^[[:space:]]*//' || true
     fi
   } > "$dest"
   log "copied $(($(wc -l < "$dest") - 2)) settings from $src into $dest"
-  # Performance-mode workers (loaded after conf.d/) need pcntl to fork and
-  # handle signals; keep every other restriction.
+  # Performance-mode workers (loaded after conf.d/) need a few pcntl/posix
+  # functions to fork and handle signals. Only those are re-allowed; every
+  # other restriction (pcntl_exec included) stays.
   if [[ -d "$PREFIX/etc/performance.d" ]] && grep -q '^disable_functions' "$dest"; then
+    local needed=" pcntl_fork pcntl_wait pcntl_waitpid pcntl_signal pcntl_async_signals pcntl_wifexited pcntl_wexitstatus posix_kill " list kept=() f
+    list="$(grep '^disable_functions' "$dest" | tail -1 | sed -E 's/^[^=]*=[[:space:]]*//; s/^"//; s/"$//')"
+    IFS=',' read -ra funcs <<< "$list"
+    for f in "${funcs[@]}"; do
+      f="${f//[[:space:]]/}"
+      [[ -n "$f" && "$needed" != *" $f "* ]] && kept+=("$f")
+    done
     {
-      echo "; aaPanel disable_functions minus pcntl_* (needed by qhturbo-serve workers)."
-      grep '^disable_functions' "$dest" | sed -E 's/[[:space:]]*=[[:space:]]*/=/; s/pcntl_[a-z_]+,?//g; s/,$//'
+      echo "; aaPanel disable_functions minus the pcntl/posix functions qhturbo-serve workers need."
+      echo "disable_functions = $(IFS=,; echo "${kept[*]}")"
     } > "$PREFIX/etc/performance.d/05-from-aapanel.ini"
   fi
   if grep -q '^disable_functions' "$dest"; then
@@ -219,10 +229,18 @@ EOF
 }
 
 # ------------------------------------------------------------ enable/disable --
-http_code() { # site -> HTTP status of / through the local nginx
-  local site="$1" url="${URL:-http://127.0.0.1/}"
-  local code
-  code="$(curl -s -o /dev/null -w '%{http_code}' --max-time 15 -H "Host: $site" "$url")" || true
+http_code() { # site -> HTTP status of the site's home page through the local nginx
+  local site="$1" code redirect
+  if [[ -n "$URL" ]]; then
+    code="$(curl -sk -o /dev/null -w '%{http_code}' --max-time 15 -H "Host: $site" "$URL")" || true
+    echo "${code:-000}"; return
+  fi
+  read -r code redirect < <(curl -s -o /dev/null -w '%{http_code} %{redirect_url}\n' --max-time 15 -H "Host: $site" http://127.0.0.1/ || true)
+  # HTTP -> HTTPS redirect: nginx answers before PHP runs, so test HTTPS
+  # (certificate not verified: we only want the status code).
+  if [[ "$code" =~ ^30[1278]$ && "$redirect" == https://* ]]; then
+    code="$(curl -sk -o /dev/null -w '%{http_code}' --max-time 15 --resolve "$site:443:127.0.0.1" "https://$site/")" || true
+  fi
   echo "${code:-000}"
 }
 

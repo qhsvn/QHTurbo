@@ -41,6 +41,10 @@ final class Poller
     public static function forget(\mysqli $link): void
     {
         unset(self::$pending[spl_object_id($link)]);
+        if (!self::$pending && self::$timer !== null && self::$loop === Loop::get()) {
+            self::$loop->cancel(self::$timer); // no busy 0.5 ms timer while idle
+            self::$timer = null;
+        }
     }
 
     private static function poll(): void

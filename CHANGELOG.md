@@ -4,6 +4,19 @@
 
 ## [Unreleased]
 
+### Fixed — rà soát lỗi trước khi chạy thử (2026-10-22)
+Rà soát toàn bộ code (43 phát hiện), sửa các lỗi thật và thêm test hồi quy cho từng lỗi quan trọng (ISSUE-013 đến ISSUE-016).
+- **aaPanel:** `aapanel.sh sync-ini` dừng giữa chừng khi php.ini thiếu một khoá (ví dụ `session.save_path` bị comment), do `grep` không khớp dưới `set -o pipefail` (ISSUE-013). `performance.d` giờ chỉ mở lại đúng các hàm `pcntl_*`/`posix_kill` mà worker cần, `pcntl_exec` vẫn bị chặn. Kiểm tra rollback đi theo chuyển hướng HTTP→HTTPS.
+- **Script:** `install-ext.sh` thoát im lặng khi không tìm thấy phiên bản; `run-tests.sh` không `shift` khi chỉ có một tham số và bỏ qua `QHT_PROFILE`; `make-patch.sh` bỏ qua `QHT_PROFILE`; `build.sh` thiếu dấu cách giữa các cờ LDFLAGS; `qht-doctor` bỏ qua cả dự án nằm trong thư mục tên `cache`/`tests`; `package.sh` ghi đè cấu hình của server khi giải nén và dùng số CPU của máy build (giờ cấu hình nằm ở `share/qhturbo/etc.dist`, chạy `setup.sh` sau khi giải nén).
+- **Pool:** request hết thời gian chờ kết nối đúng lúc một kết nối được trả về làm mất hẳn kết nối đó (ISSUE-014).
+- **Supervisor:** reload không nạp code mới khi `opcache.validate_timestamps=0` (`opcache_reset()` không có tác dụng trong tiến trình CLI và còn làm OPcache ngừng cache); reload giết worker cũ cả khi code mới không khởi động được, giờ worker cũ được giữ lại; chờ worker cũ không giới hạn thời gian; worker con chạy handler SIGTERM của master khi nhận tín hiệu lúc đang khởi động, làm master không bao giờ dừng (ISSUE-015); sinh worker mới sau khi đã nhận SIGTERM.
+- **HTTP server:** `Content-Length` âm/không hợp lệ/trùng nhau được chấp nhận (nguy cơ request smuggling); header lặp lại bị ghi đè thay vì nối; không hỗ trợ `Expect: 100-continue` (curl chờ 1 giây trước mỗi upload lớn); không giới hạn số kết nối (vượt `FD_SETSIZE` làm worker quay vòng 100% CPU), thêm `--max-connections` và `LimitNOFILE`; slot xử lý bị giữ trong lúc gửi response cho client chậm; header đóng khung (`Content-Length`, `Transfer-Encoding`) do ứng dụng đặt với chữ hoa/thường khác bị gửi trùng; CR/LF trong giá trị header; HEAD/204/304; địa chỉ IPv6 (`REMOTE_ADDR`, `--host=::`, header Host); file upload tạm bị bỏ lại khi ghi lỗi.
+- **State:** hook reset không chạy khi `--concurrency > 1` dưới tải liên tục; `$_SERVER` bị khôi phục về trạng thái trước bootstrap (mất các giá trị `.env`); vòng dọn output buffer lặp vô hạn khi buffer không xoá được; đo static property chậm với framework lớn (giờ chỉ reflect class mới).
+- **Laravel/Symfony:** khoá config mới thêm trong request không bị xoá và bị log ở mọi request sau (ISSUE-016); `StreamedResponse` gọi `ob_flush()` làm dữ liệu đi ra STDOUT của worker thay vì vào response.
+- **MySQL/Redis:** tự thử lại sau lỗi "gone away" có thể chạy một câu INSERT/UPDATE hai lần (giờ chỉ thử lại khi câu lệnh chưa được gửi đi); kết nối nhàn rỗi trên 30 giây được kiểm tra trước khi dùng; thêm mã lỗi 4031, 2014, 1053; timer poll 0,5 ms không dừng sau timeout; `--` trong `5--?` bị coi là comment; `COMMIT WORK`/`ROLLBACK WORK` không được ghi nhận; mật khẩu chứa `+` trong URI bị đổi thành dấu cách; hỗ trợ `unix:///path/redis.sock`; HTTP client thiếu cổng trong header Host.
+- **CLI:** `--memory-limit=256MB` bị hiểu là 256 byte (worker bị tái tạo sau mỗi request); `--framework` không có giá trị, số worker âm, cổng ngoài phạm vi giờ báo lỗi rõ ràng.
+- Test: 34 test runtime (thêm 10), test framework kiểm tra thêm config, `StreamedResponse`, HEAD; `tests/aapanel-sim.sh` thêm trường hợp php.ini thiếu `session.save_path` (13/13). Các test mới đều thất bại trên code cũ.
+
 ### Added — Redis/MySQL async và adapter framework (2026-10-22)
 - `runtime/src/Pool`: pool kết nối có giới hạn, dùng chung cho các request của một worker (hàng đợi khi pool hết chỗ, loại kết nối hỏng, timeout khi lấy kết nối).
 - `runtime/src/Redis`: client Redis không chặn (RESP2, pipeline, AUTH/SELECT, mọi lệnh qua `__call`).

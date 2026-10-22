@@ -66,6 +66,9 @@ function laravelApp(): string
     if (!str_contains($web, 'qhturbo-test-routes.php')) {
         file_put_contents("$dir/routes/web.php", $web . "\nrequire __DIR__ . '/qhturbo-test-routes.php';\n");
     }
+    // A route cache (e.g. left by a benchmark) would hide the test routes.
+    exec(escapeshellarg(PHP_BINARY) . ' ' . escapeshellarg("$dir/artisan") . ' route:clear -q 2>&1', $out, $code);
+    check($code === 0, 'route:clear failed: ' . implode("\n", $out));
     return $dir;
 }
 
@@ -122,11 +125,17 @@ test('laravel: auth, queued cookies, config, locale do not leak', function () us
         check(!str_contains($headers, 'qht_leak='), 'queued cookie leaked to another user');
         $b->get('/qht/config/set');
         check($b->get('/qht/config/get') === 'default', 'runtime config change leaked');
+        $b->get('/qht/config/add');
+        check($b->get('/qht/config/new') === 'null', 'config key added during a request leaked');
+        $b->get('/qht/hello');
         $b->get('/qht/locale/set');
         check($b->get('/qht/locale/get') === 'en', 'locale leaked');
     } finally {
-        $srv->stop();
+        $log = $srv->stop();
     }
+    // Restored once per changing request (config set, config add, setLocale
+    // also writes app.locale), not again on every later request.
+    check(substr_count($log, 'config changed during a request') <= 3, "config restored too often:\n$log");
 });
 
 test('laravel: open DB transaction is rolled back after the request', function () use (&$port): void {
@@ -202,9 +211,15 @@ test('symfony: routes, services reset between requests, cookies, upload, safe 50
         check($s === 404, "404 expected, got $s");
         [$s, , $body] = $b->req('GET', '/qht/boom');
         check($s === 500 && !str_contains($body, 'secret detail'), "500 without details, got $s");
+        [$s, , $body] = $b->req('GET', '/qht/stream');
+        check($s === 200 && $body === 'abc', "streamed response with ob_flush(): $s '$body'");
+        [$s, $headers, $body] = $b->req('HEAD', '/qht/hello', [CURLOPT_NOBODY => true]);
+        // Symfony drops the body of HEAD responses: no length rather than a wrong "0".
+        check($s === 200 && $body === '' && stripos($headers, 'Content-Length: 0') === false, "HEAD Content-Length:\n$headers");
     } finally {
-        $srv->stop();
+        $log = $srv->stop();
     }
+    check(!str_contains($log, 'abc'), "streamed output leaked to the worker's stdout:\n$log");
 });
 
 run_tests();

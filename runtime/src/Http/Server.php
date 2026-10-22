@@ -25,12 +25,24 @@ use function QHTurbo\Runtime\Async\write;
  */
 final class Server
 {
+    /**
+     * With concurrency > 1 the state guard (reset hooks, cleanup) runs when
+     * no request is in flight. Under constant load that moment may never
+     * come, so after this many requests new ones wait until the in-flight
+     * ones finish and the guard has run.
+     */
+    private const GUARD_BARRIER = 64;
+
     /** @var resource|null */
     private $listener = null;
     private ?string $acceptWatcher = null;
     private int $inFlight = 0;
     private int $served = 0;
     private bool $draining = false;
+    /** Requests finished since the state guard last ran (concurrency > 1). */
+    private int $unguarded = 0;
+    /** Accepting is paused because the connection limit was reached. */
+    private bool $acceptPaused = false;
     /** @var list<\QHTurbo\Runtime\Async\Future> waiting for a concurrency slot */
     private array $slotQueue = [];
     /** @var array<int, resource> */
@@ -93,7 +105,24 @@ final class Server
         stream_set_blocking($conn, false);
         stream_set_read_buffer($conn, 0);
         $this->connections[(int) $conn] = $conn;
+        // stream_select() cannot watch descriptors above FD_SETSIZE (1024)
+        // and accept() fails in a busy loop once the descriptor limit is
+        // reached: stop accepting until a connection closes. Other workers,
+        // or the kernel backlog, take the extra connections meanwhile.
+        if (count($this->connections) >= $this->options->maxConnections && $this->acceptWatcher !== null) {
+            Loop::get()->cancel($this->acceptWatcher);
+            $this->acceptWatcher = null;
+            $this->acceptPaused = true;
+        }
         async(fn () => $this->serveConnection($conn, (string) $peer));
+    }
+
+    private function resumeAccept(): void
+    {
+        if ($this->acceptPaused && !$this->draining && count($this->connections) < $this->options->maxConnections) {
+            $this->acceptPaused = false;
+            $this->acceptWatcher = Loop::get()->onReadable($this->listener, fn () => $this->accept());
+        }
     }
 
     /** @param resource $conn */
@@ -115,14 +144,18 @@ final class Server
                     break;
                 }
                 $this->acquireSlot();
-                $keepAlive = false;
                 try {
-                    $keepAlive = $this->keepAlive($request) && !$this->draining;
                     $response = $this->dispatch($request);
-                    write($conn, $response->toRaw($keepAlive, $request->method === 'HEAD'), $this->options->writeTimeout);
+                    $keepAlive = $this->keepAlive($request) && !$this->draining;
+                    $raw = $response->toRaw($keepAlive, $request->method === 'HEAD');
+                    unset($response);
                 } finally {
                     $this->releaseSlot();
                 }
+                // The slot is free while the bytes go out: a slow client
+                // does not hold up the next request of this worker.
+                write($conn, $raw, $this->options->writeTimeout);
+                unset($raw);
                 if (!$keepAlive) {
                     break;
                 }
@@ -136,6 +169,7 @@ final class Server
         } finally {
             unset($this->connections[(int) $conn], $this->idle[(int) $conn]);
             @fclose($conn);
+            $this->resumeAccept();
             $this->checkDrained();
         }
     }
@@ -154,15 +188,18 @@ final class Server
         }
         $request->cleanup();
         $this->served++;
-        // Per-request state must not survive; with concurrency > 1 the guard
-        // only runs when no other request is in flight.
-        if ($this->inFlight === 1) {
+        // Per-request state must not survive. With concurrency > 1 other
+        // requests may still be using it: the guard runs in releaseSlot()
+        // once no request is in flight.
+        if ($this->options->concurrency === 1) {
             try {
                 $this->guard->afterRequest();
             } catch (StateViolation $e) {
                 ($this->log)($e->getMessage());
                 $response = Response::text($this->options->debug ? $e->getMessage() . "\n" : "Internal Server Error\n", 500);
             }
+        } else {
+            $this->unguarded++;
         }
         return $response;
     }
@@ -202,17 +239,46 @@ final class Server
         $headers = [];
         foreach ($lines as $line) {
             $colon = strpos($line, ':');
-            if ($colon === false) {
+            if ($colon === false || $colon === 0) {
                 throw new BadRequest('Malformed header', 400);
             }
-            $headers[strtolower(trim(substr($line, 0, $colon)))] = trim(substr($line, $colon + 1));
+            $name = strtolower(substr($line, 0, $colon));
+            if ($name !== trim($name)) {
+                throw new BadRequest('Malformed header', 400); // "Name :" is forbidden (RFC 9112 5.1)
+            }
+            $value = trim(substr($line, $colon + 1));
+            if (!isset($headers[$name])) {
+                $headers[$name] = $value;
+            } elseif ($name === 'content-length' || $name === 'host') {
+                // Several different lengths = request smuggling attempt.
+                if ($headers[$name] !== $value) {
+                    throw new BadRequest("Conflicting $name headers", 400);
+                }
+            } else {
+                // Repeated headers are one list (RFC 9110 5.3); cookies use "; ".
+                $headers[$name] .= ($name === 'cookie' ? '; ' : ', ') . $value;
+            }
         }
         if (isset($headers['transfer-encoding'])) {
             throw new BadRequest('Chunked request bodies are not supported; send Content-Length', 411);
         }
-        $length = (int) ($headers['content-length'] ?? 0);
+        $rawLength = $headers['content-length'] ?? '0';
+        if (!ctype_digit($rawLength) || strlen($rawLength) > 18) {
+            throw new BadRequest('Invalid Content-Length', 400);
+        }
+        $length = (int) $rawLength;
         if ($length > $this->options->maxBodyBytes) {
             throw new BadRequest('Request body too large', 413);
+        }
+        if (isset($headers['expect'])) {
+            if (strtolower($headers['expect']) !== '100-continue') {
+                throw new BadRequest('Unsupported Expect header', 417);
+            }
+            // The client waits for this before sending the body (curl sends
+            // "Expect: 100-continue" for bodies over 1 KiB).
+            if ($protocol !== 'HTTP/1.0' && strlen($buffer) < $length) {
+                write($conn, "HTTP/1.1 100 Continue\r\n\r\n", $this->options->writeTimeout);
+            }
         }
         while (strlen($buffer) < $length) {
             $chunk = read($conn, 65536, $this->options->readTimeout);
@@ -224,7 +290,9 @@ final class Server
         $body = (string) substr($buffer, 0, $length);
         $buffer = (string) substr($buffer, $length);
 
-        [$remoteAddr, $remotePort] = array_pad(explode(':', $peer, 2), 2, '');
+        // "1.2.3.4:5678" or "[2001:db8::1]:5678"
+        $colon = strrpos($peer, ':');
+        [$remoteAddr, $remotePort] = $colon === false ? [$peer, ''] : [trim(substr($peer, 0, $colon), '[]'), substr($peer, $colon + 1)];
         $path = (string) parse_url($uri, PHP_URL_PATH);
         $server = [
             'REQUEST_METHOD' => $method,
@@ -261,7 +329,7 @@ final class Server
 
     private function acquireSlot(): void
     {
-        while ($this->inFlight >= $this->options->concurrency) {
+        while ($this->inFlight >= $this->options->concurrency || $this->unguarded >= self::GUARD_BARRIER) {
             $wait = new \QHTurbo\Runtime\Async\Future();
             $this->slotQueue[] = $wait;
             await($wait);
@@ -272,7 +340,20 @@ final class Server
     private function releaseSlot(): void
     {
         $this->inFlight--;
-        if ($this->slotQueue) {
+        if ($this->unguarded > 0 && $this->inFlight === 0) {
+            $this->unguarded = 0;
+            try {
+                $this->guard->afterRequest();
+            } catch (StateViolation $e) {
+                ($this->log)($e->getMessage()); // the responses are already built
+            }
+            // Wake every waiter; those that find no free slot queue again.
+            $queue = $this->slotQueue;
+            $this->slotQueue = [];
+            foreach ($queue as $wait) {
+                $wait->resolve();
+            }
+        } elseif ($this->slotQueue && $this->unguarded < self::GUARD_BARRIER) {
             array_shift($this->slotQueue)->resolve();
         }
         $this->checkDrained();

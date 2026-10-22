@@ -39,6 +39,9 @@ final class StateGuard
     private int $requests = 0;
     /** @var array<string, mixed> */
     private array $serverBaseline;
+    /** @var list<string> classes already measured, and how many there were */
+    private array $staticClasses = [];
+    private int $classCount = 0;
 
     /** @param \Closure(string): void $log */
     public function __construct(
@@ -57,6 +60,8 @@ final class StateGuard
     /** Snapshot the clean state right after the application bootstrap. */
     public function captureBaseline(): void
     {
+        // After the bootstrap: frameworks put .env values into $_SERVER.
+        $this->serverBaseline = $_SERVER;
         $this->baselineGlobals = array_fill_keys(array_keys($GLOBALS), true);
         foreach (self::WATCHED_INI as $name) {
             $this->baselineIni[$name] = ini_get($name);
@@ -82,7 +87,10 @@ final class StateGuard
         }
 
         while (ob_get_level() > $this->baselineObLevel) {
-            ob_end_clean();
+            if (!@ob_end_clean()) {
+                $violations[] = 'output buffer left open by the request cannot be removed';
+                break;
+            }
             $violations[] = 'output buffer left open by the request (cleaned)';
         }
 
@@ -183,13 +191,21 @@ final class StateGuard
     /** @return array<string, int> */
     private function measureStatics(): array
     {
-        $sizes = [];
-        foreach (get_declared_classes() as $class) {
-            $ref = new \ReflectionClass($class);
-            if ($ref->isInternal() || str_starts_with($class, 'QHTurbo\\Runtime\\')) {
-                continue;
+        // Reflect only classes loaded since the last call; remember which
+        // ones have static properties (a framework loads thousands of
+        // classes, few of them have statics).
+        $classes = get_declared_classes();
+        for ($i = $this->classCount, $n = count($classes); $i < $n; $i++) {
+            $ref = new \ReflectionClass($classes[$i]);
+            if (!$ref->isInternal() && !str_starts_with($classes[$i], 'QHTurbo\\Runtime\\')
+                && $ref->getProperties(\ReflectionProperty::IS_STATIC)) {
+                $this->staticClasses[] = $classes[$i];
             }
-            foreach ($ref->getProperties(\ReflectionProperty::IS_STATIC) as $prop) {
+        }
+        $this->classCount = count($classes);
+        $sizes = [];
+        foreach ($this->staticClasses as $class) {
+            foreach ((new \ReflectionClass($class))->getProperties(\ReflectionProperty::IS_STATIC) as $prop) {
                 if (!$prop->isInitialized()) {
                     continue;
                 }

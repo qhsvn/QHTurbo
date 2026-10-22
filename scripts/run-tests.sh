@@ -4,9 +4,11 @@
 # Modes: interp = no OPcache, opcache = OPcache on, jit = OPcache + tracing JIT.
 source "$(dirname "$0")/lib.sh"
 
-variant="${1:-}"; mode="${2:-opcache}"; shift 2 || true
+variant="${1:-}"; mode="${2:-opcache}"
+# "shift 2" does nothing when fewer than 2 arguments are given.
+shift $(( $# < 2 ? $# : 2 ))
 is_variant "$variant" || die "Usage: $0 <${VARIANTS[*]// /|}> [interp|opcache|jit] [dirs...]"
-wt="$WORKTREES/$variant"
+wt="$WORKTREES/$variant$PROFILE_TAG"
 php="$(php_bin "$variant")"
 [[ -x "$php" ]] || die "$php not built"
 
@@ -21,7 +23,7 @@ esac
 opcache_args "$variant"
 ini=("${OPCACHE_ARGS[@]}" "${ini[@]}")
 
-out="$RESULTS_DIR/tests/php$QHT_PHP-$variant-$mode"
+out="$RESULTS_DIR/tests/php$QHT_PHP-$variant$PROFILE_TAG-$mode"
 mkdir -p "$out/raw"
 log "PHPT: PHP $QHT_PHP $variant ($mode), output in $out"
 # run-tests exits non-zero when any test fails; we record and report instead.

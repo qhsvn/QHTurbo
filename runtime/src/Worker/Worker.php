@@ -23,9 +23,10 @@ final class Worker
 
     /**
      * @param resource $listener
+     * @param (\Closure(): void)|null $onReady called once the application has booted
      * @return int exit code
      */
-    public function run($listener): int
+    public function run($listener, ?\Closure $onReady = null): int
     {
         $log = static fn (string $msg) => fwrite(STDERR, sprintf("[qhturbo %s pid=%d] %s\n", date('H:i:s'), getmypid(), $msg));
         $guard = new StateGuard($this->options->strictState, $this->options->stateCheckEvery, \Closure::fromCallable($log));
@@ -40,6 +41,9 @@ final class Worker
         $loop = Loop::get();
         $server = new Server($handler, $this->options, $guard, \Closure::fromCallable($log));
         $server->listen($listener);
+        if ($onReady !== null) {
+            $onReady();
+        }
 
         $stopping = false;
         $stop = static function (string $why) use (&$stopping, $server, $loop, $log): void {
@@ -86,18 +90,13 @@ final class Worker
 
     private static function register(mixed $app, StateGuard $guard, string $appFile = 'bridge'): callable
     {
-        if (is_object($app) && !is_callable($app) && method_exists($app, 'handle')) {
-            if ($app instanceof ResetInterface) {
-                $guard->addResetter($app);
-            }
-            return [$app, 'handle'];
-        }
-        if (!is_callable($app)) {
+        $handler = is_object($app) && !is_callable($app) && method_exists($app, 'handle') ? [$app, 'handle'] : $app;
+        if (!is_callable($handler)) {
             throw new \UnexpectedValueException("$appFile must return a callable or an object with handle()");
         }
         if ($app instanceof ResetInterface) {
             $guard->addResetter($app);
         }
-        return $app;
+        return $handler;
     }
 }

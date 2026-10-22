@@ -61,7 +61,7 @@ variant_flags() {
   local cflags="$BASE_CFLAGS" ldflags="${QHT_EXTRA_LDFLAGS:-}"
   if [[ "$variant" == *-pgo ]]; then
     cflags+="${PGO_EXTRA_CFLAGS:+ $PGO_EXTRA_CFLAGS}"
-    ldflags+="$PGO_EXTRA_LDFLAGS"
+    ldflags+="${PGO_EXTRA_LDFLAGS:+ $PGO_EXTRA_LDFLAGS}"
   fi
   echo "$cflags|$ldflags|${CONFIGURE_FLAGS[*]}"
 }

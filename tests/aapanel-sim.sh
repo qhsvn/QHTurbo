@@ -81,7 +81,9 @@ chmod +x "$SIM/www/server/nginx/sbin/nginx"
 cat > "$SIM/www/server/php/$TAG/etc/php.ini" <<'EOF'
 memory_limit = 256M
 upload_max_filesize = 50M
-disable_functions = exec,system,shell_exec,passthru,pcntl_fork,pcntl_signal
+disable_functions = exec,system,shell_exec,passthru,pcntl_exec,pcntl_fork,pcntl_signal
+session.save_handler = files
+;session.save_path = "/tmp"
 EOF
 cat > "$SIM/www/server/php/$TAG/etc/php-fpm.conf" <<EOF
 [global]
@@ -116,7 +118,12 @@ vhost="$SIM/www/server/panel/vhost/nginx/test.local.conf"
 cp "$vhost" "$SIM/original.conf"
 
 "$A" check --php="$PHPV" > /dev/null 2>&1 && ok "check" || bad "check"
-"$A" sync-ini --php="$PHPV" > /dev/null 2>&1 && ok "sync-ini" || bad "sync-ini"
+"$A" sync-ini --php="$PHPV" > /dev/null 2>&1 && ok "sync-ini (session.save_path commented out)" || bad "sync-ini"
+perf_ini="/opt/qhturbo/$PHPV/etc/performance.d/05-from-aapanel.ini"
+if [[ -d "/opt/qhturbo/$PHPV/etc/performance.d" ]]; then
+  grep -qx 'disable_functions = exec,system,shell_exec,passthru,pcntl_exec' "$perf_ini" \
+    && ok "Performance ini re-allows only the pcntl functions workers need" || bad "$perf_ini: $(cat "$perf_ini" 2>&1)"
+fi
 [[ -S "/run/qhturbo/php$TAG-fpm.sock" ]] || "/opt/qhturbo/$PHPV/sbin/php-fpm" --fpm-config "/opt/qhturbo/$PHPV/etc/php-fpm.conf"
 kill -USR2 "$(cat "/run/qhturbo/php$TAG-fpm.pid")"; sleep 1
 

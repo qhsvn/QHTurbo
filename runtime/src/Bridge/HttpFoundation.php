@@ -27,10 +27,11 @@ final class HttpFoundation
      */
     public static function toSymfony(Request $r, string $class = SymfonyRequest::class, string $fileClass = UploadedFile::class): SymfonyRequest
     {
+        // "example.com", "example.com:8080", "[2001:db8::1]:8080"
         $host = (string) $r->header('host', 'localhost');
-        [$name, $port] = str_contains($host, ':') && !str_ends_with($host, ']')
-            ? explode(':', $host, 2) + [1 => '80']
-            : [$host, '80'];
+        [$name, $port] = preg_match('/^(\[[^\]]*\]|[^:]*)(?::(\d+))?$/', $host, $m)
+            ? [$m[1], ($m[2] ?? '') !== '' ? $m[2] : '80']
+            : ['localhost', '80'];
         $server = $r->server + [
             'SERVER_NAME' => $name,
             'SERVER_PORT' => $port,
@@ -49,11 +50,21 @@ final class HttpFoundation
     public static function fromSymfony(SymfonyResponse $response): Response
     {
         if ($response instanceof StreamedResponse || $response instanceof BinaryFileResponse) {
-            ob_start();
+            // Collect through a callback: the streamed code may call
+            // ob_flush()/flush() and the data must not go to STDOUT.
+            // The whole body is kept in memory (serve big files with nginx).
+            $body = '';
+            ob_start(static function (string $chunk) use (&$body): string {
+                $body .= $chunk;
+                return '';
+            });
+            $level = ob_get_level();
             try {
                 $response->sendContent();
             } finally {
-                $body = (string) ob_get_clean();
+                while (ob_get_level() >= $level && @ob_end_flush()) {
+                    // also closes buffers the callback left open
+                }
             }
         } else {
             $body = (string) $response->getContent();

@@ -50,18 +50,21 @@ final class Connection
     {
         $sql = $params ? $this->interpolate($sql, $params) : $sql;
         try {
-            if ($this->link->query($sql, MYSQLI_ASYNC) === false) {
-                throw new QueryException($this->link->error, $this->link->errno, $sql);
+            // Sending: an error here means the server never got the query.
+            try {
+                $sent = $this->link->query($sql, MYSQLI_ASYNC);
+            } catch (\mysqli_sql_exception $e) {
+                throw new QueryException($e->getMessage(), $e->getCode(), $sql, $e, sent: false);
+            }
+            if ($sent === false) {
+                throw new QueryException($this->link->error, $this->link->errno, $sql, null, sent: false);
             }
             $result = await(timeout(Poller::wait($this->link), $this->queryTimeout));
         } catch (QueryException $e) {
             if ($e->isConnectionError()) {
                 $this->broken = true;
             }
-            throw new QueryException($e->getMessage(), $e->getCode(), $sql, $e->getPrevious());
-        } catch (\mysqli_sql_exception $e) {
-            $this->broken = $this->broken || in_array($e->getCode(), [2002, 2006, 2013, 2055], true);
-            throw new QueryException($e->getMessage(), $e->getCode(), $sql, $e);
+            throw new QueryException($e->getMessage(), $e->getCode(), $sql, $e->getPrevious(), $e->sent);
         } catch (\Throwable $e) {
             // Timeout: the query may still be running on the server; this
             // connection can never be reused.
@@ -98,8 +101,27 @@ final class Connection
     {
         if (preg_match('/^\s*(START\s+TRANSACTION|BEGIN)\b/i', $sql)) {
             $this->txDepth = 1;
-        } elseif (preg_match('/^\s*(COMMIT|ROLLBACK)\s*;?\s*$/i', $sql)) {
-            $this->txDepth = 0;
+        } elseif (preg_match('/^\s*(COMMIT|ROLLBACK)(\s+WORK)?(\s+AND\s+(NO\s+)?CHAIN)?(\s+(NO\s+)?RELEASE)?\s*;?\s*$/i', $sql, $m)) {
+            // "AND CHAIN" starts a new transaction at once; "ROLLBACK TO
+            // SAVEPOINT x" does not match and keeps the transaction open.
+            $this->txDepth = !empty($m[3]) && empty($m[4]) ? 1 : 0;
+        }
+    }
+
+    /**
+     * Is this idle connection still usable? The server closes connections
+     * idle for longer than wait_timeout; finding that out with a real query
+     * would fail the request (and a write cannot be retried safely).
+     */
+    public function isAlive(): bool
+    {
+        if ($this->broken) {
+            return false;
+        }
+        try {
+            return $this->link->query('DO 1') === true; // blocking, one round trip
+        } catch (\Throwable) {
+            return false;
         }
     }
 
@@ -153,7 +175,9 @@ final class Connection
                 }
                 $out .= substr($sql, $i, $end - $i + 1);
                 $i = $end;
-            } elseif ($ch === '-' && ($sql[$i + 1] ?? '') === '-' || $ch === '#') {
+            } elseif ($ch === '#' || ($ch === '-' && ($sql[$i + 1] ?? '') === '-' && ($i + 2 >= $len || ctype_space($sql[$i + 2]) || ctype_cntrl($sql[$i + 2])))) {
+                // MySQL: "-- " is a comment only when followed by a space or
+                // control character ("5--?" is 5 minus a negative number).
                 $end = strpos($sql, "\n", $i);
                 $end = $end === false ? $len : $end;
                 $out .= substr($sql, $i, $end - $i);

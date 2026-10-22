@@ -45,6 +45,12 @@ Route::prefix('qht')->withoutMiddleware($noCsrf)->group(function () {
         return 'set';
     });
     Route::get('/config/get', fn () => config('app.qht_test', 'default'));
+    // A top-level key that did not exist at boot must disappear too.
+    Route::get('/config/add', function () {
+        config(['qht_new' => ['k' => 'v']]);
+        return 'added';
+    });
+    Route::get('/config/new', fn () => json_encode(config('qht_new')));
 
     Route::get('/locale/set', function () {
         App::setLocale('vi');

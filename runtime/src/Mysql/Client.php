@@ -24,6 +24,9 @@ use QHTurbo\Runtime\Pool\Pool;
  */
 final class Client
 {
+    /** Seconds after which an idle pooled connection is checked before use. */
+    private const CHECK_AFTER_IDLE = 30.0;
+
     /** @var Pool<Connection> */
     private Pool $pool;
     private Config $config;
@@ -39,7 +42,8 @@ final class Client
             factory: static fn () => Connection::open($cfg),
             maxSize: $cfg->poolSize,
             closer: static fn (Connection $c) => $c->close(),
-            check: static fn (Connection $c) => !$c->broken,
+            // Connections idle for a while are checked with one round trip.
+            check: static fn (Connection $c, float $idleFor) => !$c->broken && ($idleFor < self::CHECK_AFTER_IDLE || $c->isAlive()),
             acquireTimeout: $cfg->connectTimeout + $cfg->queryTimeout,
         );
     }
@@ -50,9 +54,11 @@ final class Client
         try {
             return $this->withConnection(static fn (Connection $c) => $c->query($sql, $params));
         } catch (QueryException $e) {
-            // "Server has gone away" on an idle pooled connection: the query
-            // was never executed, so retrying once on a fresh one is safe.
-            if ($e->getCode() === 2006) {
+            // The connection died before the query could be sent (server
+            // restarted, idle timeout): it never ran, so one retry on a
+            // fresh connection is safe. A failure after sending is never
+            // retried: an INSERT/UPDATE might already have been applied.
+            if (!$e->sent && $e->isConnectionError()) {
                 return $this->withConnection(static fn (Connection $c) => $c->query($sql, $params));
             }
             throw $e;

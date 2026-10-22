@@ -32,7 +32,8 @@ final class Client
 
         $conn = connect("tcp://$host:$port", $timeout);
         try {
-            $headers += ['Host' => $host, 'Connection' => 'close', 'Content-Length' => (string) strlen($body)];
+            $headers += ['Host' => isset($parts['port']) ? "$host:$port" : $host, 'Connection' => 'close',
+                'Content-Length' => (string) strlen($body)];
             $raw = "$method $path HTTP/1.1\r\n";
             foreach ($headers as $name => $value) {
                 $raw .= "$name: $value\r\n";

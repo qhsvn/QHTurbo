@@ -11,6 +11,9 @@ use QHTurbo\Runtime\State\ResetInterface;
 use function QHTurbo\Runtime\Async\delay;
 
 ini_set('date.timezone', 'UTC');
+// Frameworks load .env into $_SERVER during the bootstrap; it must survive
+// the superglobal reset after each request.
+$_SERVER['QHT_BOOT'] = 'yes';
 
 final class LeakyCache
 {
@@ -74,6 +77,10 @@ final class App implements ResetInterface
                 return 'changed';
             case '/tz':
                 return Response::text((string) ini_get('date.timezone'));
+            case '/boot-server':
+                return Response::text((string) ($_SERVER['QHT_BOOT'] ?? 'missing'));
+            case '/length':
+                return Response::text((string) strlen($r->body));
         }
         return Response::text("Not Found\n", 404);
     }

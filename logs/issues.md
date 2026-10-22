@@ -94,3 +94,26 @@
 - **Hiện tượng:** lần đo đầu, cả FPM và worker chỉ đạt khoảng 100–300 req/s, worker còn chậm hơn FPM.
 - **Nguyên nhân:** 43.942 file session (175 MB) do benchmark tạo ra; Laravel định kỳ quét cả thư mục để dọn session cũ, nên lần chạy sau chậm hơn lần chạy trước.
 - **Xử lý:** dọn thư mục, dùng Redis cho session/cache ở cả hai chế độ. Số đo cũ bị loại.
+
+## ISSUE-013 — `aapanel.sh sync-ini` dừng giữa chừng trên php.ini thật (đã sửa)
+
+- **Ngày:** 2026-10-22
+- **Phát hiện:** rà soát code trước khi chạy thử. php.ini mặc định của aaPanel có `session.save_handler = files` nhưng `session.save_path` bị comment. Với `set -euo pipefail`, `grep` không tìm thấy dòng nào sẽ trả mã 1 và script thoát ngay, không báo lỗi gì, trước khi ghi xong file cấu hình.
+- **Sửa:** thêm `|| true` cho các `grep` "không khớp cũng được". `tests/aapanel-sim.sh` giờ dùng php.ini có `;session.save_path`; script cũ thất bại ở bước `sync-ini`, script mới qua 13/13.
+
+## ISSUE-014 — Pool mất kết nối khi timeout trùng lúc trả kết nối (đã sửa)
+
+- **Nguyên nhân:** `acquire()` dùng `timeout()` bọc future chờ. Khi timer hết hạn, future bọc ngoài thất bại nhưng future chờ trong hàng đợi vẫn "chưa xong" cho tới khi fiber chạy lại. Nếu `release()` chạy trong khoảng đó (cùng tick), kết nối được giao cho waiter đã bỏ cuộc và mất luôn: `size` vẫn tính nó, nên pool dần cạn.
+- **Sửa:** timer làm thất bại chính future chờ và gỡ nó khỏi hàng đợi trong cùng một bước. Test `pool: a waiter that timed out never receives a connection`.
+
+## ISSUE-015 — Reload và tín hiệu trong supervisor (đã sửa)
+
+- **Reload không nạp code mới khi `opcache.validate_timestamps=0`** (cấu hình Performance mặc định): `opcache_reset()` trong tiến trình CLI chỉ đặt cờ "chờ reset", việc reset xảy ra ở lần khởi động request tiếp theo, mà tiến trình master không bao giờ có. Trong lúc chờ, OPcache ngừng cache. Giờ master vô hiệu hoá từng script đã cache (`opcache_invalidate`), có tác dụng ngay trong bộ nhớ dùng chung.
+- **Deploy lỗi làm sập dịch vụ:** reload sinh worker mới rồi giết worker cũ ngay, kể cả khi worker mới chết vì lỗi cú pháp. Giờ worker mới báo "sẵn sàng" qua một socket pair; chỉ khi đó worker cũ mới bị dừng (tối đa 60 giây để xử lý nốt request).
+- **Worker con kế thừa handler SIGTERM của master:** SIGTERM đến khi worker đang khởi động sẽ chạy `shutdown()` của master *trong worker*, rồi worker vẫn chạy tiếp và master chờ mãi. Giờ worker đặt lại SIGTERM/SIGINT về mặc định ngay sau `fork()`.
+- Test: `server: reload loads new code; a broken deploy keeps the old workers`, `server: SIGTERM while workers are still booting stops promptly` (code cũ treo ở test này).
+
+## ISSUE-016 — Laravel: khoá config thêm trong request không bị xoá (đã sửa)
+
+- **Nguyên nhân:** khôi phục bằng `config()->set($snapshot)` chỉ ghi đè các khoá có trong snapshot; khoá mới (ví dụ `config(['tenant' => ...])`) vẫn còn, sang request của người dùng khác. Vì mảng không bao giờ bằng snapshot nữa, adapter còn ghi log "config changed" ở mọi request sau.
+- **Sửa:** thay nguyên mảng `items` của repository. Khi config không đổi, phép so sánh chỉ là so con trỏ (mảng dùng chung, copy-on-write). Test trong `frameworks.php`.

@@ -120,10 +120,10 @@ final class Request
                     'error' => UPLOAD_ERR_NO_FILE, 'size' => 0];
                 if ($fm[1] !== '') {
                     $tmp = tempnam(sys_get_temp_dir(), 'qhtup');
-                    $ok = $tmp !== false && file_put_contents($tmp, $content) !== false;
-                    if ($ok) {
-                        $this->tempFiles[] = $tmp;
+                    if ($tmp !== false) {
+                        $this->tempFiles[] = $tmp; // removed by cleanup() even if the write fails
                     }
+                    $ok = $tmp !== false && file_put_contents($tmp, $content) === strlen($content);
                     $info = ['name' => basename($fm[1]), 'full_path' => $fm[1],
                         'type' => $headers['content-type'] ?? 'application/octet-stream',
                         'tmp_name' => $ok ? $tmp : '', 'error' => $ok ? UPLOAD_ERR_OK : UPLOAD_ERR_CANT_WRITE,

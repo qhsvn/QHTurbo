@@ -153,6 +153,7 @@ function scan_code(string $dir): void
         'session' => ['/\bsession_(start|regenerate_id|destroy)\s*\(/', 'native sessions rely on per-request globals; use a session service'],
         'output' => ['/^\s*(echo|print)\b|\bob_start\s*\(/m', 'direct output must be captured into the Response'],
         'set-handler' => ['/\bset_(error|exception)_handler\s*\(|\bregister_shutdown_function\s*\(/', 'handlers registered per request accumulate in a worker'],
+        'upload' => ['/\b(move_uploaded_file|is_uploaded_file)\s*\(/', 'move_uploaded_file()/is_uploaded_file() always fail outside PHP-FPM; use rename() on the tmp_name, or the framework\'s UploadedFile'],
         'ini-set' => ['/\b(ini_set|date_default_timezone_set|setlocale)\s*\(/', 'runtime ini/locale changes leak into later requests'],
     ];
     $counts = array_fill_keys(array_keys($rules), 0);
@@ -161,7 +162,10 @@ function scan_code(string $dir): void
     $it = new RecursiveIteratorIterator(new RecursiveDirectoryIterator($dir, FilesystemIterator::SKIP_DOTS));
     foreach ($it as $file) {
         $path = $file->getPathname();
-        if (substr($path, -4) !== '.php' || preg_match('#/(vendor|node_modules|tests?|storage|cache)/#', $path)) {
+        // Match excluded directories only inside the scanned tree, not in
+        // the directory that contains it (/srv/cache/app is fine).
+        $relative = substr($path, strlen(rtrim($dir, '/')));
+        if (substr($path, -4) !== '.php' || preg_match('#/(vendor|node_modules|tests?|storage|cache)/#', $relative)) {
             continue;
         }
         $files++;

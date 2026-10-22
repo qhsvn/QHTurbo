@@ -29,17 +29,31 @@ final class Client
     /** @var Pool<Connection> */
     private Pool $pool;
 
+    /**
+     * @param string $uri redis://[user:pass@]host[:port][/db]
+     *                    or unix:///path/redis.sock[?db=N&password=...&user=...]
+     */
     public function __construct(string $uri = 'redis://127.0.0.1:6379', int $poolSize = 16, float $timeout = 5.0)
     {
-        $parts = parse_url($uri);
-        if ($parts === false || !in_array($parts['scheme'] ?? '', ['redis', 'unix'], true)) {
-            throw new \InvalidArgumentException("Invalid Redis URI: $uri (expected redis://[user:pass@]host[:port][/db])");
+        if (preg_match('#^unix:(?://)?(/[^?]*)(?:\?(.*))?$#', $uri, $m)) {
+            parse_str($m[2] ?? '', $q);
+            $host = $m[1];
+            $port = 0;
+            $user = isset($q['user']) ? (string) $q['user'] : null;
+            $pass = isset($q['password']) ? (string) $q['password'] : null;
+            $db = (int) ($q['db'] ?? 0);
+        } else {
+            $parts = parse_url($uri);
+            if ($parts === false || ($parts['scheme'] ?? '') !== 'redis') {
+                throw new \InvalidArgumentException("Invalid Redis URI: $uri (expected redis://[user:pass@]host[:port][/db] or unix:///path/redis.sock)");
+            }
+            $host = (string) ($parts['host'] ?? '127.0.0.1');
+            $port = (int) ($parts['port'] ?? 6379);
+            // rawurldecode: "+" in a password is a plus, not a space.
+            $user = isset($parts['user']) ? rawurldecode($parts['user']) : null;
+            $pass = isset($parts['pass']) ? rawurldecode($parts['pass']) : null;
+            $db = (int) ltrim((string) ($parts['path'] ?? ''), '/');
         }
-        $host = ($parts['scheme'] === 'unix') ? (string) $parts['path'] : (string) ($parts['host'] ?? '127.0.0.1');
-        $port = (int) ($parts['port'] ?? 6379);
-        $user = isset($parts['user']) ? urldecode($parts['user']) : null;
-        $pass = isset($parts['pass']) ? urldecode($parts['pass']) : null;
-        $db = $parts['scheme'] === 'redis' ? (int) ltrim((string) ($parts['path'] ?? ''), '/') : 0;
 
         $this->pool = new Pool(
             factory: static fn () => Connection::open($host, $port, $user, $pass, $db, $timeout),

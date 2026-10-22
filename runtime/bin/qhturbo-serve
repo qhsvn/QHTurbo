@@ -8,6 +8,7 @@ declare(strict_types=1);
 //   qhturbo-serve /path/to/project --framework=laravel|symfony [options]
 //                 [--concurrency=1] [--max-requests=10000] [--memory-limit=256M]
 //                 [--superglobals] [--strict-state] [--state-check-every=100] [--debug]
+//                 [--max-body=8M] [--max-connections=512]
 
 if (PHP_VERSION_ID < 80100) {
     fwrite(STDERR, "qhturbo-serve needs PHP >= 8.1 (Fibers). Use QHturbo Compatible mode (PHP-FPM) for PHP " . PHP_VERSION . ".\n");
@@ -26,7 +27,7 @@ use QHTurbo\Runtime\Worker\Supervisor;
 // Options may come before or after the app file (getopt() stops at the first
 // positional argument, so parse by hand).
 $known = ['host', 'port', 'workers', 'concurrency', 'max-requests', 'memory-limit',
-    'superglobals', 'strict-state', 'state-check-every', 'debug', 'help', 'framework', 'max-body'];
+    'superglobals', 'strict-state', 'state-check-every', 'debug', 'help', 'framework', 'max-body', 'max-connections'];
 $opts = [];
 $app = null;
 foreach (array_slice($argv, 1) as $arg) {
@@ -45,17 +46,24 @@ foreach (array_slice($argv, 1) as $arg) {
 }
 if ($app === null || isset($opts['help'])) {
     fwrite(STDERR, "usage: qhturbo-serve app.php [--host=H] [--port=P] [--workers=N] [--concurrency=C]\n"
-        . "       [--max-requests=N] [--memory-limit=256M] [--max-body=8M] [--superglobals] [--strict-state] [--debug]\n"
+        . "       [--max-requests=N] [--memory-limit=256M] [--max-body=8M] [--max-connections=512]\n"
+        . "       [--superglobals] [--strict-state] [--state-check-every=N] [--debug]\n"
         . "       qhturbo-serve /path/to/project --framework=laravel|symfony [same options]\n");
     exit($app === null ? 1 : 0);
 }
-if (isset($opts['framework']) ? !is_dir($app) : !is_file($app)) {
-    fwrite(STDERR, (isset($opts['framework']) ? 'project directory' : 'app file') . " not found: $app\n");
+try {
+    $options = Options::fromCli($opts);
+} catch (\InvalidArgumentException $e) {
+    fwrite(STDERR, 'qhturbo-serve: ' . $e->getMessage() . "\n");
+    exit(1);
+}
+if ($options->framework !== '' ? !is_dir($app) : !is_file($app)) {
+    fwrite(STDERR, ($options->framework !== '' ? 'project directory' : 'app file') . " not found: $app\n");
     exit(1);
 }
 
 try {
-    exit((new Supervisor(realpath($app), Options::fromCli($opts)))->run());
+    exit((new Supervisor(realpath($app), $options))->run());
 } catch (\Throwable $e) {
     fwrite(STDERR, 'qhturbo-serve: ' . $e->getMessage() . "\n");
     exit(1);

@@ -15,7 +15,7 @@
 | Phiên bản PHP | **8.1 trở lên** (cần Fiber). PHP 7.4/8.0 dùng chế độ Compatible |
 | Mô hình chạy | nginx (reverse proxy) → `qhturbo-serve` (master + N worker) |
 | Mã nguồn | `runtime/` (gói Composer `qhturbo/runtime`, không phụ thuộc gì, cũng chạy được không cần Composer) |
-| Test | `php runtime/tests/run.php`: 24 test (event loop, async, HTTP, tái tạo worker, reload, quy tắc trạng thái, Redis, MySQL)<br>`php runtime/tests/frameworks.php`: 6 test trên Laravel 13 và Symfony 8.1 thật |
+| Test | `php runtime/tests/run.php`: 34 test (event loop, async, pool, HTTP, tái tạo worker, reload kể cả deploy lỗi, quy tắc trạng thái, Redis, MySQL)<br>`php runtime/tests/frameworks.php`: 6 test trên Laravel 13 và Symfony 8.1 thật |
 
 ## 1. Kết quả đo
 
@@ -87,6 +87,8 @@ qhturbo-serve worker.php --workers=4 --concurrency=1 --max-requests=10000 --memo
 kill -HUP <master-pid>      # deploy: thay worker lần lượt, không rơi request
 ```
 
+Khi reload (`SIGHUP`): OPcache của các file đã nạp bị vô hiệu hoá để worker mới đọc code mới (kể cả khi `opcache.validate_timestamps=0`). Worker cũ chỉ bị dừng **sau khi** worker mới khởi động xong; nếu code mới lỗi (ví dụ lỗi cú pháp), reload dừng lại, log ghi `reload aborted` và các worker cũ tiếp tục phục vụ code cũ. Worker cũ có tối đa 60 giây để xử lý nốt request. Sau nhiều lần reload, bộ nhớ OPcache bị chiếm bởi các bản cũ; thỉnh thoảng hãy khởi động lại hẳn (`systemctl restart`).
+
 Systemd: `qhturbo-php85-worker@<tên>.service` và file `/etc/qhturbo/worker-<tên>.env` (do `scripts/install.sh` cài). nginx đứng trước làm reverse proxy (TLS, HTTP/2, file tĩnh, nén):
 
 ```nginx
@@ -105,7 +107,8 @@ location / { proxy_http_version 1.1; proxy_set_header Connection ""; proxy_set_h
 | `--strict-state` | tắt | Vi phạm quy tắc trạng thái thì trả 500 và ghi log (dùng ở dev/staging) |
 | `--state-check-every=N` | 100 | Kiểm tra static property/RAM mỗi N request |
 | `--framework=laravel\|symfony` | — | Chạy thư mục dự án Laravel/Symfony (mục 6). Bắt buộc `--concurrency=1` |
-| `--max-body=8M` | 8M | Kích thước request tối đa (kể cả upload) |
+| `--max-body=8M` | 8M | Kích thước request tối đa (kể cả upload). Nhận `512K`, `8M`, `8MB`, `1G` |
+| `--max-connections=N` | 512 | Số kết nối mở tối đa mỗi worker (tối đa 1000, giới hạn của `stream_select`). Khi đầy, worker tạm ngừng nhận kết nối mới; các worker khác hoặc hàng đợi của kernel giữ chúng |
 
 ## 3. Quy tắc quản lý trạng thái (bắt buộc)
 
@@ -119,7 +122,7 @@ Trong FPM, mọi thứ tự mất khi request kết thúc. Trong worker, **nhữ
 | R4 | **Không `header()`, `setcookie()`, `echo` để trả kết quả**: đặt header/body trên `Response` | `qht-doctor --scan` liệt kê các chỗ cần sửa |
 | R5 | Không đổi `ini_set`, `date_default_timezone_set`, `setlocale` theo request | ini đã thay đổi được **khôi phục** sau request |
 | R6 | Output buffer phải đóng | Buffer còn mở được dọn và ghi log |
-| R7 | Kết nối DB/Redis: mở một lần và dùng lại. Phải xử lý khi kết nối bị mất (reconnect), và **không để transaction mở sang request sau** | — (Phase tiếp theo: pool + kiểm tra transaction) |
+| R7 | Kết nối DB/Redis: mở một lần và dùng lại. Phải xử lý khi kết nối bị mất (reconnect), và **không để transaction mở sang request sau** | Client MySQL/Redis của runtime (mục 5): pool, kiểm tra kết nối nhàn rỗi, rollback transaction còn mở |
 | R8 | Với `--concurrency > 1`: mọi trạng thái dùng chung giữa các request đang chạy xen kẽ phải **an toàn**. Không dùng superglobals. **Lệnh chặn (PDO, `file_get_contents` URL, `sleep`) sẽ chặn cả worker**, nên chỉ dùng I/O async | `--superglobals` bị từ chối khi concurrency > 1 |
 | R9 | Code đăng ký handler theo request (`set_error_handler`, `register_shutdown_function`) sẽ bị chồng lên nhau | `qht-doctor --scan` cảnh báo |
 
@@ -136,6 +139,9 @@ Trong FPM, mọi thứ tự mất khi request kết thúc. Trong worker, **nhữ
 ## 4. Giới hạn hiện tại
 
 - HTTP/1.1 tự viết bằng PHP: không có TLS, HTTP/2 hay request body dạng chunked (để nginx đứng trước lo). Upload `multipart/form-data` được nạp vào RAM, nên giới hạn bằng `--max-body`.
+- `move_uploaded_file()` và `is_uploaded_file()` luôn trả `false` ngoài PHP-FPM (file tạm không do PHP tạo khi upload). Code cũ dùng `--superglobals` phải đổi sang `rename($_FILES[...]['tmp_name'], $dest)`; `qht-doctor --scan` chỉ ra những chỗ này. `UploadedFile` của Laravel/Symfony hoạt động bình thường.
+- Response được dựng hết trong RAM trước khi gửi, kể cả `StreamedResponse` và `BinaryFileResponse` của Symfony/Laravel. File tải xuống lớn hãy để nginx phục vụ (file tĩnh hoặc `X-Accel-Redirect`).
+- Với `--concurrency > 1`, hook reset và dọn trạng thái chạy khi worker không còn request nào đang chạy; nếu tải liên tục, cứ sau 64 request worker tạm dừng nhận request mới để dọn.
 - Client MySQL: kết nối mới được mở theo kiểu chặn (mysqlnd không có connect async); vì có pool nên chỉ tốn một lần cho mỗi kết nối. Chưa có prepared statement phía server: tham số được escape theo charset, giống chế độ "emulated prepares" mặc định của PDO MySQL. Redis: chưa có Pub/Sub, Cluster và Sentinel.
 - PDO/Eloquent/Doctrine vẫn **chặn**. Ứng dụng Laravel/Symfony chạy với `--concurrency=1` vẫn nhanh 6–15× nhờ bỏ chi phí khởi động; muốn tận dụng I/O song song thì dùng client async ở những đoạn I/O nặng.
 - Adapter Laravel mô phỏng cách dọn trạng thái của Octane nhưng chưa đủ mọi trường hợp. Package bên thứ ba giữ trạng thái trong static hay singleton vẫn có thể rò; hãy chạy staging với `--strict-state`, `--state-check-every=1` và giữ `--max-requests`.

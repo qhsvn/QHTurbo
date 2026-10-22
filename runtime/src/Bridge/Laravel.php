@@ -118,9 +118,17 @@ final class Laravel implements ResetInterface
         if (method_exists(\Illuminate\Support\Str::class, 'flushCache')) {
             \Illuminate\Support\Str::flushCache();
         }
+        // Unchanged config is the same array as the snapshot, so this
+        // comparison is a pointer check, not a deep compare.
         if ($app['config']->all() !== $this->config) {
             ($this->log)('config changed during a request: restored');
-            $app['config']->set($this->config);
+            // set() would only overwrite keys and keep the ones added during
+            // the request: replace the whole array instead.
+            $config = $app['config'];
+            $restore = \Closure::bind(function (array $items): void {
+                $this->items = $items;
+            }, $config, $config::class);
+            property_exists($config, 'items') ? $restore($this->config) : $config->set($this->config);
         }
         if (method_exists($app, 'forgetScopedInstances')) {
             $app->forgetScopedInstances();

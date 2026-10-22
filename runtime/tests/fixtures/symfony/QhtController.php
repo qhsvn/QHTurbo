@@ -9,6 +9,7 @@ use Symfony\Component\HttpFoundation\Cookie;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 use Symfony\Component\Routing\Attribute\Route;
 
 final class QhtController
@@ -56,6 +57,19 @@ final class QhtController
         $r->headers->setCookie(Cookie::create('a', '1'));
         $r->headers->setCookie(Cookie::create('b', '2'));
         return $r;
+    }
+
+    #[Route('/qht/stream')]
+    public function stream(): StreamedResponse
+    {
+        // ob_flush()/flush() must not send the chunks to the worker's STDOUT.
+        return new StreamedResponse(static function (): void {
+            foreach (['a', 'b', 'c'] as $chunk) {
+                echo $chunk;
+                ob_flush();
+                flush();
+            }
+        });
     }
 
     #[Route('/qht/boom')]

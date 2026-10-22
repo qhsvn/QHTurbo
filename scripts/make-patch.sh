@@ -11,8 +11,8 @@ variant="${1:-}"; name="${2:-}"
 uses_patches "$variant" || die "Usage: $0 <qhturbo|qhturbo-pgo> <QHT-XXX-nnn-name>"
 [[ "$name" =~ ^QHT-(ENG|MEM|JIT|WEB|SEC)-[0-9]{3}[A-Za-z0-9._-]*$ ]] \
   || die "Patch name must start with a task id, e.g. QHT-ENG-001-dispatch"
-wt="$WORKTREES/$variant"
-meta="$WORKTREES/.meta-$variant"
+wt="$WORKTREES/$variant$PROFILE_TAG"
+meta="$WORKTREES/.meta-$variant$PROFILE_TAG"
 file="$PATCH_DIR/$name.patch"
 [[ -e "$file" ]] && die "$file already exists"
 

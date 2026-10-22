@@ -52,6 +52,24 @@ final class TestServer
         proc_terminate($this->proc, $sig);
     }
 
+    /** Wait until the server process exits; false on timeout. */
+    public function waitExit(float $timeout): bool
+    {
+        $end = microtime(true) + $timeout;
+        while (proc_get_status($this->proc)['running']) {
+            if (microtime(true) > $end) {
+                return false;
+            }
+            usleep(20_000);
+        }
+        return true;
+    }
+
+    public function logSoFar(): string
+    {
+        return (string) file_get_contents($this->logFile);
+    }
+
     public function stop(): string
     {
         proc_terminate($this->proc, SIGTERM);

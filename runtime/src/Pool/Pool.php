@@ -6,9 +6,9 @@ namespace QHTurbo\Runtime\Pool;
 
 use QHTurbo\Runtime\Async\Future;
 use QHTurbo\Runtime\Async\TimeoutException;
+use QHTurbo\Runtime\EventLoop\Loop;
 
 use function QHTurbo\Runtime\Async\await;
-use function QHTurbo\Runtime\Async\timeout;
 
 /**
  * Bounded pool of reusable connections shared by all requests of a worker.
@@ -72,11 +72,20 @@ final class Pool
         }
         $wait = new Future();
         $this->waiters[] = $wait;
-        try {
-            $conn = await(timeout($wait, $this->acquireTimeout));
-        } catch (TimeoutException $e) {
+        // The timer fails $wait itself and removes it from the queue in the
+        // same step, so release() can never hand a connection to a waiter
+        // that already gave up (the connection would be lost).
+        $timer = Loop::get()->delay($this->acquireTimeout, function () use ($wait): void {
+            if ($wait->isDone()) {
+                return;
+            }
             $this->waiters = array_values(array_filter($this->waiters, static fn ($w) => $w !== $wait));
-            throw new TimeoutException(sprintf('No connection available within %.1f s (pool size %d)', $this->acquireTimeout, $this->maxSize), 0, $e);
+            $wait->fail(new TimeoutException(sprintf('No connection available within %.1f s (pool size %d)', $this->acquireTimeout, $this->maxSize)));
+        });
+        try {
+            $conn = await($wait);
+        } finally {
+            Loop::get()->cancel($timer);
         }
         // null = a slot was freed (connection discarded): open a new one.
         return $conn ?? $this->acquire();
