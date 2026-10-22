@@ -5,7 +5,7 @@ Mỗi thay đổi một mục, theo mẫu trong `docs/KE-HOACH-GOC.md` §6.2. Gi
 ## 2026-10-22 06:30 — QHT-P01-001 Khởi tạo dự án
 
 - **Mục tiêu:** dựng repo, công cụ build/test/benchmark có thể tái lập, theo kế hoạch gốc.
-- **Môi trường:** máy build Linux đám mây (Ubuntu 24.04.5, kernel 6.18, 4 vCPU, 15 GiB RAM, gcc 13.3.0). Không truy cập được ổ D: của người dùng, nên dự án đẩy lên GitHub `tanchinhdo/QHTurbo` (ISSUE-002).
+- **Môi trường:** máy build Linux đám mây (Ubuntu 24.04.5, kernel 6.18, 4 vCPU, 15 GiB RAM, gcc 13.3.0). Không ghi trực tiếp được vào máy Windows của người dùng, nên dự án đẩy lên GitHub `tanchinhdo/QHTurbo` (ISSUE-002).
 - **Kết quả:**
   - Xác minh tag upstream mới nhất của từng nhánh qua `git ls-remote` (commit ghim trong `config/versions/`). `php-8.5.12` = `136e049a…`, khớp kế hoạch gốc.
   - Người dùng yêu cầu thêm hỗ trợ **PHP 7.4 trở lên**, nên đã chuyển toàn bộ script sang đa phiên bản (`QHT_PHP=7.4…8.5`).

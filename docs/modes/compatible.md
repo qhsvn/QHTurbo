@@ -54,6 +54,8 @@ sudo systemctl daemon-reload && sudo systemctl enable --now qhturbo-php85-fpm
 
 ### Chuyển một site aaPanel sang QHturbo (có đường lui)
 
+Cách nhanh và an toàn nhất: dùng `scripts/aapanel.sh` (tự backup, tự rollback). Xem [docs/aapanel.md](../aapanel.md). Các bước thủ công bên dưới để tham khảo:
+
 1. Backup vhost: `cp /www/server/panel/vhost/nginx/site.conf{,.bak}`.
 2. Trong vhost, thay `include enable-php-85.conf;` bằng:
    ```nginx

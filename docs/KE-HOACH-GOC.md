@@ -2,9 +2,9 @@
 
 > **Tên dự án:** PHP QHturbo — High-Performance PHP Runtime  
 > **Ngày lập:** 22/10/2026  
-> **Đường dẫn mục tiêu trên Windows:** `D:\usertcd\QHTurbo`  
+> **Vị trí dự án:** repo GitHub `tanchinhdo/QHTurbo` (clone về bất kỳ thư mục nào)  
 > **Mục tiêu phát hành:** Runtime PHP tùy biến có kiểm chứng, tương thích ngược tối đa; chạy Linux/aaPanel sau khi vượt qua kiểm thử.  
-> **Trạng thái thực tế:** Đã có **bộ khởi tạo** `PHP-QHturbo-starter.zip`; **chưa** triển khai vào ổ D, chưa clone/build lõi PHP và chưa có bản vá Zend Engine chứng minh tăng tốc.
+> **Trạng thái thực tế:** Đã có **bộ khởi tạo** `PHP-QHturbo-starter.zip`; **chưa** triển khai, chưa clone/build lõi PHP và chưa có bản vá Zend Engine chứng minh tăng tốc.
 
 ---
 
@@ -13,7 +13,7 @@
 1. **Không phỏng đoán tốc độ.** Chỉ tuyên bố nhanh hơn khi có log đo lường có thể tái lập.
 2. **Không phá tính tương thích PHP.** Mọi thay đổi lõi phải chạy bộ kiểm thử PHPT; ứng dụng Laravel, WordPress và Composer kiểm thử ở giai đoạn tích hợp.
 3. **Không sửa thẳng máy chủ production.** Đầu tiên thử trên máy build/VM và staging; sao lưu + rollback trước khi triển khai aaPanel.
-4. **Không xóa/ghi đè dữ liệu có sẵn ở `D:\usertcd\QHTurbo`.** Kiểm tra thư mục trước; làm việc qua Git và backup.
+4. **Không xóa/ghi đè dữ liệu có sẵn ở thư mục dự án.** Kiểm tra thư mục trước; làm việc qua Git và backup.
 5. **Tách hiệu năng ngôn ngữ khỏi hiệu năng ứng dụng.** Tối ưu Zend Engine, OPcache, FPM, Redis và MySQL là những lớp khác nhau.
 6. **Cập nhật bảo mật định kỳ.** Theo dõi bản vá chính thức; nâng nền PHP kèm chạy lại test và benchmark.
 7. **Chỉ đánh dấu DONE khi có bằng chứng:** commit, lệnh chạy, phiên bản công cụ, log và kết quả kiểm thử.
@@ -53,10 +53,10 @@ Chỉ sau khi QHturbo đạt tiêu chuẩn tương thích mới đóng gói PHP-
 
 ---
 
-## 2. Cấu trúc dự án trên ổ D
+## 2. Cấu trúc dự án
 
 ```text
-D:\usertcd\QHTurbo\
+QHTurbo/
 ├── README.md
 ├── ROADMAP.md
 ├── PROJECT_STATUS.md
@@ -112,7 +112,7 @@ ChatGPT trong trình duyệt chat thông thường **không tự có quyền tr�
 Mở PowerShell trong quyền tài khoản Windows bình thường:
 
 ```powershell
-$Project = 'D:\usertcd\QHTurbo'
+$Project = "$env:USERPROFILE\QHTurbo"
 if (Test-Path $Project) {
     Write-Host "Đã tồn tại: $Project — kiểm tra dữ liệu trước khi ghi"
     Get-ChildItem -Force $Project | Select-Object Name, Length, LastWriteTime
@@ -125,11 +125,11 @@ Nếu thư mục có dữ liệu, tạo backup riêng **trước** khi giải n�
 
 ```powershell
 $Zip = "$env:USERPROFILE\Downloads\PHP-QHturbo-starter.zip"
-$Temp = 'D:\usertcd\QHTurbo-starter-extracted'
+$Temp = "$env:USERPROFILE\QHTurbo-starter-extracted"
 if (!(Test-Path $Zip)) { throw "Không tìm thấy $Zip" }
 if (Test-Path $Temp) { throw "Thư mục tạm đã tồn tại: $Temp" }
 Expand-Archive -LiteralPath $Zip -DestinationPath $Temp
-# Kiểm tra D:\usertcd\QHTurbo-starter-extracted\PHP-QHturbo trước khi copy.
+# Kiểm tra <thư mục tạm>\PHP-QHturbo trước khi copy.
 # Chỉ copy những file chưa có, hoặc xử lý trùng file bằng Git/diff.
 ```
 
@@ -145,7 +145,7 @@ wsl --status
 wsl -l -v
 ```
 
-Có thể cần khởi động lại Windows. Sau đó mở Ubuntu. Thư mục Windows có thể truy cập tại `/mnt/d/usertcd/QHTurbo` nếu WSL đã mount ổ D. Với benchmark chính thức, **khuyến nghị build và chạy test trong filesystem Linux**, ví dụ `~/QHTurbo-lab`, đồng bộ các tài liệu/patch và báo cáo trở lại ổ D để tránh sai lệch filesystem của WSL.
+Có thể cần khởi động lại Windows. Sau đó mở Ubuntu. Ổ đĩa Windows được WSL mount dưới `/mnt/<ổ>`. Với benchmark chính thức, **khuyến nghị build và chạy test trong filesystem Linux**, ví dụ `~/QHTurbo-lab`, đồng bộ tài liệu/patch và báo cáo qua Git để tránh sai lệch filesystem của WSL.
 
 Trong Ubuntu:
 
@@ -160,7 +160,7 @@ sudo apt install -y git build-essential autoconf bison re2c pkg-config \
 Sau khi đặt nội dung starter vào dự án, từ Ubuntu:
 
 ```bash
-cd /mnt/d/usertcd/QHTurbo
+cd ~/QHTurbo
 bash scripts/bootstrap.sh
 bash scripts/build.sh baseline
 bash scripts/build.sh qhturbo
@@ -174,7 +174,7 @@ bash scripts/benchmark.sh
 Script starter tạo Git worktree detached một lần; **không tự cập nhật worktree QHturbo** sau khi branch đổi commit. Trước khi build lại, phải kiểm tra code đã commit và cập nhật worktree một cách chủ động:
 
 ```bash
-cd /mnt/d/usertcd/QHTurbo
+cd ~/QHTurbo
 # Đảm bảo mọi thay đổi đã commit/backup trước khi remove worktree.
 git -C php-src status --short
 git -C worktrees/qhturbo status --short
@@ -321,7 +321,7 @@ Tổng quan: TODO / IN_PROGRESS / TESTING / DONE / BLOCKED
 
 | Task | Trạng thái | Commit | Bằng chứng | Vướng mắc |
 |---|---|---|---|---|
-| QHT-P01-001 Kiểm tra dự án | TODO | - | - | Chưa truy cập ổ D |
+| QHT-P01-001 Kiểm tra dự án | TODO | - | - | Chưa có quyền truy cập máy người dùng |
 | QHT-P01-002 Build baseline | TODO | - | - | Chưa cài toolchain |
 
 Bước kế tiếp:
@@ -430,9 +430,9 @@ Tests: PHPT 1234 pass, 0 fail (ví dụ minh họa, KHÔNG là kết quả thự
 ## 10. Checklist khởi động — việc có thể thực hiện ngay
 
 - [ ] Tải `PHP-QHturbo-starter.zip` từ cuộc hội thoại về máy.
-- [ ] Kiểm tra `D:\usertcd\QHTurbo` có dữ liệu hay chưa.
+- [ ] Kiểm tra thư mục dự án có dữ liệu hay chưa.
 - [ ] Giải nén vào thư mục tạm, kiểm tra rồi chuyển nội dung không trùng.
-- [ ] Lưu tài liệu này thành `D:\usertcd\QHTurbo\ROADMAP.md` hoặc `PROJECT_PLAN.md`.
+- [ ] Lưu tài liệu này thành `ROADMAP.md` hoặc `PROJECT_PLAN.md`.
 - [ ] Cài WSL2 Ubuntu và toolchain.
 - [ ] Chạy `scripts/bootstrap.sh` (sau khi kiểm chứng upstream tag).
 - [ ] Build baseline/QHturbo và lưu hash binary.
@@ -447,7 +447,7 @@ Tests: PHPT 1234 pass, 0 fail (ví dụ minh họa, KHÔNG là kết quả thự
 | Kế hoạch tổng thể, 6 phase, tiêu chí nghiệm thu | **Đã soạn tài liệu** |
 | Bộ khởi tạo `PHP-QHturbo-starter.zip` | **Đã có trong hội thoại** |
 | File kế hoạch Markdown này | **Đã tạo trong môi trường ChatGPT** |
-| Tạo file vào `D:\usertcd\QHTurbo` | **Chưa thực hiện / chưa có quyền truy cập ổ D** |
+| Tạo file dự án | **Thay bằng repo GitHub** |
 | Clone php-src trên máy người dùng | **Chưa thực hiện** |
 | Build + chạy PHPT | **Chưa thực hiện** |
 | Patch tối ưu Zend Engine | **Chưa có** |

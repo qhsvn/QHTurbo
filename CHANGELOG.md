@@ -4,6 +4,16 @@
 
 ## [Unreleased]
 
+### Added — aaPanel và tài liệu (2026-10-22)
+- `scripts/aapanel.sh`: `check`, `install`, `enable <site>` (từng site, tự rollback khi `nginx -t` lỗi hoặc site trả 5xx), `disable`, `status`, `sync-ini` (chép `disable_functions` và giới hạn từ php.ini của aaPanel; worker giữ lại `pcntl_*`), `uninstall`. Lệnh `check` liệt kê extension còn thiếu so với PHP aaPanel.
+- `scripts/install-ext.sh`: cài extension PECL; nếu PECL không truy cập được thì dùng bản phát hành ổn định trên GitHub (đã thử redis 6.3.0 trên 8.5, apcu 5.1.28 trên 7.4).
+- `tests/aapanel-sim.sh`: kiểm thử end-to-end trên aaPanel mô phỏng (12/12).
+- `docs/aapanel.md`: hướng dẫn cài thử trên aaPanel.
+- README tiếng Anh làm mặc định (`README.md`), bản tiếng Việt ở `README.vi.md`, kèm mục tính năng chính.
+
+### Changed
+- Bỏ các đường dẫn Windows cụ thể (ổ D:) khỏi tài liệu; hướng dẫn dùng `git clone` vào thư mục bất kỳ.
+
 ### Added — hai chế độ chạy (2026-10-22)
 - **QHturbo Compatible**: build profile `full` (`QHT_PROFILE=full`) gồm PHP-FPM và các extension thường dùng (openssl, curl, intl, gd, mysqli, pdo_mysql, zip, sodium, bcmath, soap, pcntl...). `scripts/install.sh` cài vào `/opt/qhturbo/<nhánh>` song song với PHP có sẵn, kèm cấu hình OPcache an toàn, pool FPM và systemd unit. `scripts/package.sh` đóng gói `.tar.gz` (đã strip, 15 MB) kèm danh sách thư viện phụ thuộc.
 - PHP 7.4/8.0 build `full` dùng OpenSSL 1.1.1w riêng (`scripts/deps-openssl11.sh`), không đụng OpenSSL 3 của hệ thống.

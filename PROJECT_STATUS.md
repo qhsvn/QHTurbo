@@ -10,7 +10,7 @@ Máy build/đo: VM đám mây (Intel Xeon 2.8 GHz, 4 vCPU, 15 GiB, Ubuntu 24.04.
 
 | Task | Trạng thái | Commit / bằng chứng | Ghi chú |
 |---|---|---|---|
-| QHT-P01-001 Khởi tạo repo, cấu trúc thư mục, tài liệu | DONE | repo `tanchinhdo/QHTurbo` | Ổ D: không truy cập được từ máy build → GitHub (ISSUE-002) |
+| QHT-P01-001 Khởi tạo repo, cấu trúc thư mục, tài liệu | DONE | repo `tanchinhdo/QHTurbo` | Đồng bộ qua GitHub (ISSUE-002) |
 | QHT-P01-002 Hỗ trợ đa phiên bản PHP 7.4 → 8.5 | DONE | `config/versions/*.env`, `scripts/lib.sh` | Yêu cầu bổ sung của người dùng |
 | QHT-P01-003 Build baseline 8.5.12 và 7.4.33 | DONE | `BUILD-INFO.txt` (sha256) | 7.4 cần `--enable-json` (đã sửa) |
 | QHT-P01-004 PHPT baseline | DONE | `results/tests/` | 8.5: 13568 pass / 0 fail. 7.4: 8997 pass / 46 fail, tất cả do môi trường (xem dưới) |
@@ -41,7 +41,7 @@ Không có test fail nào liên quan đến QHturbo (chưa có patch mã nguồn
 
 ## Bước kế tiếp
 
-1. **Trên máy người dùng:** `git clone` về `D:\usertcd\QHTurbo`, chạy trong WSL theo README (`QHT_LAB=~/QHTurbo-lab`) để có baseline của máy thật.
+1. **Trên máy người dùng:** `git clone` repo, chạy trong Linux/WSL theo README (`QHT_LAB=~/QHTurbo-lab`) để có baseline của máy thật; thử aaPanel theo `docs/aapanel.md`.
 2. Tạo tag baseline trên máy người dùng (máy build không được phép push tag): `git tag -a qhturbo-baseline-20261022 094b04d -m "baseline" && git push origin qhturbo-baseline-20261022`.
 3. Build + PHPT + benchmark cho 8.0 → 8.4 (`QHT_PHP=8.x`).
 4. Phase 5: thêm biến thể FPM + extension aaPanel, benchmark HTTP bằng ứng dụng thật. Đây là nơi người dùng thấy lợi ích rõ nhất (OPcache, preload, `pm.*`, Redis/MySQL).
@@ -57,4 +57,4 @@ Không có test fail nào liên quan đến QHturbo (chưa có patch mã nguồn
 ## Vướng mắc
 
 - Máy đo đám mây nhiễu (ISSUE-003): một workload đơn lẻ cần chênh hơn ±8% mới đáng tin.
-- Ổ D: chỉ đồng bộ được qua Git (ISSUE-002).
+- Máy người dùng chỉ đồng bộ được qua Git (ISSUE-002).

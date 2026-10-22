@@ -4,7 +4,7 @@
 
 ## Checklist
 
-- [x] Kiểm tra thư mục đích: repo GitHub `tanchinhdo/QHTurbo` lúc đầu trống, không có dữ liệu bị ghi đè. Ổ D: không truy cập được từ máy build (ISSUE-002).
+- [x] Kiểm tra thư mục đích: repo GitHub `tanchinhdo/QHTurbo` lúc đầu trống, không có dữ liệu bị ghi đè. Đồng bộ qua GitHub (ISSUE-002).
 - [x] `README.md`, `ROADMAP.md`, `PROJECT_STATUS.md`, `CHANGELOG.md`.
 - [x] Toolchain và thông tin máy: được ghi tự động vào mọi báo cáo (`machine_info` / `bench.py`).
 - [x] Clone PHP upstream theo tag đã xác minh. Không fork nhánh `qhturbo/main` trong `php-src` mà dùng **chuỗi patch theo nhánh** (`patches/<nhánh>/series`), gọn hơn và áp lại được trên tag mới.
@@ -17,7 +17,7 @@
 ## Cách tái lập
 
 ```bash
-export QHT_LAB=~/QHTurbo-lab          # build ngoài /mnt/d khi dùng WSL
+export QHT_LAB=~/QHTurbo-lab          # build trên filesystem Linux khi dùng WSL
 QHT_PHP=8.5 scripts/bootstrap.sh
 QHT_PHP=8.5 scripts/build.sh baseline
 QHT_PHP=8.5 scripts/build.sh qhturbo

@@ -5,7 +5,7 @@ set -euo pipefail
 QHT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 # Heavy artefacts (php-src clone, worktrees, binaries) live in QHT_LAB.
 # On Windows/WSL point it at the Linux filesystem, e.g. QHT_LAB=~/QHTurbo-lab,
-# because builds and benchmarks on /mnt/d are slow and noisy.
+# because builds and benchmarks on Windows drives (/mnt/<drive>) are slow and noisy.
 QHT_LAB="${QHT_LAB:-$QHT_ROOT}"
 # PHP branch to work on: 7.4, 8.0 ... 8.5 (see config/versions/).
 QHT_PHP="${QHT_PHP:-8.5}"

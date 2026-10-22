@@ -1,129 +1,184 @@
 # PHP QHturbo
 
-Dự án thử nghiệm để **làm PHP chạy nhanh hơn một cách có kiểm chứng**, hỗ trợ **PHP 7.4 → 8.5**. Dự án được xây dựng trên mã nguồn PHP chính thức (`php-src`) và giữ tương thích ngược.
+**English** · [Tiếng Việt](README.vi.md)
 
-> **Trạng thái thật (22/10/2026):** đã xong Phase 1 (nền tảng, baseline, công cụ đo/kiểm thử), cùng hai chế độ chạy **Compatible** và **Performance**. Binary PHP chưa nhanh hơn bản gốc (PGO đã thử 2 lần, đánh giá NO-GO; chưa có bản vá Zend Engine). Tốc độ hiện đến từ **mô hình chạy** (worker chạy lâu dài, async I/O) và cấu hình. Các con số đo trên VM đám mây có nhiễu. Xem [PROJECT_STATUS.md](PROJECT_STATUS.md).
+QHturbo makes PHP applications run faster **with measured, reproducible evidence**, for **PHP 7.4 to 8.5**. It is built from the official PHP source (`php-src`), installs **beside** your existing PHP (never over it), and offers two ways to run your code:
 
-## Hai chế độ chạy
+- **QHturbo Compatible**: standard PHP-FPM. Runs WordPress, Laravel, Composer and legacy code **without code changes**.
+- **QHturbo Performance**: long-lived workers, an event loop and async I/O. **7–8× more requests/s** than PHP-FPM in our benchmark, for applications that follow simple state rules.
 
-| | **QHturbo Compatible** | **QHturbo Performance** |
+> **Status (2026-10-22):** foundation, both run modes, aaPanel integration and tooling are done and tested. The PHP binary itself is not faster than upstream yet: PGO was tried twice (NO-GO) and there are no Zend Engine patches yet. Today's speed-ups come from **how PHP runs** (workers, async I/O) and from configuration. Numbers were measured on a shared cloud VM (±8% noise). See [PROJECT_STATUS.md](PROJECT_STATUS.md).
+
+## Key features
+
+### Build and versions
+- **PHP 7.4, 8.0, 8.1, 8.2, 8.3, 8.4, 8.5** built from pinned upstream tags. Every tag is verified against its commit hash before building.
+- Two build profiles: `minimal` (engine benchmarks) and `full` (PHP-FPM + 51 modules: openssl, curl, intl, gd, mysqli, pdo_mysql, zip, sodium, bcmath, soap, pcntl…).
+- Build variants `baseline` / `qhturbo` (with patch series) / `qhturbo-pgo` (profile-guided). Each binary ships a `BUILD-INFO.txt` with its sha256, flags and patch list.
+- PHP 7.4/8.0 build against a private OpenSSL 1.1.1 on modern distros (OpenSSL 3), leaving the system untouched.
+- Install side by side in `/opt/qhturbo/<version>`. Package as a stripped `.tar.gz` (≈15 MB) with a dependency list.
+
+### QHturbo Compatible (PHP-FPM)
+- Drop-in PHP-FPM with its own socket and systemd unit. Safe OPcache defaults (256 MB, 50k files, file-change detection kept on), JIT off by default, worker recycling, slowlog, status/ping pages.
+- Verified: legacy app (sessions, cookies, `header()`, uploads, SQLite) identical on 7.4 and 8.5. Composer installs Laravel 13 and its test suite passes. Composer + Guzzle HTTPS work on 7.4.
+
+### QHturbo Performance (PHP 8.1+, pure PHP, no extension needed)
+- **Long-lived workers:** the application boots once per process, not once per request.
+- **Event loop + Fiber async I/O:** `async()`, `await()`, `all()`, `delay()`, `timeout()`, non-blocking TCP and an HTTP client.
+- **HTTP/1.1 server:** keep-alive, per-worker concurrency limit, request size limits. Runs behind nginx.
+- **Supervisor:** multi-process workers, recycling after N requests or a memory limit, **zero-downtime rolling reload** (`SIGHUP`), graceful shutdown, crash-loop back-off.
+- **State guard** that enforces per-request isolation: reset hooks (`ResetInterface`), removal of leaked globals, restore of changed ini settings and open output buffers, detection of growing static properties and memory, a `--strict-state` mode for staging, and `--superglobals` for legacy code.
+
+### aaPanel integration
+- `scripts/aapanel.sh`: `check` → `install` → `enable <site>` → `disable <site>` / `status` / `sync-ini` / `uninstall`.
+- Switches **one site at a time**, with **automatic rollback** if nginx fails its config test or the site starts returning 5xx.
+- Copies `disable_functions` and limits from the aaPanel php.ini, so the site keeps the same security restrictions.
+- `scripts/install-ext.sh`: installs PECL extensions (redis, imagick, apcu…), falling back to the GitHub release when PECL is unreachable.
+
+### Tooling
+- `qht-doctor`: checks a PHP installation (OPcache sizing, Xdebug in production, EOL versions, missing extensions) and **scans code for worker-mode risks** (globals, statics, `exit()`, `header()`, sessions…).
+- `fpm-tune`: computes `pm.max_children` from RAM and the measured worker memory.
+- `bench.py`: interleaved, warmed-up benchmarks with A/A control, peak RSS, bootstrap 95% CI and output checks. Compares builds, PHP versions, and PHP against Python, Node.js and Go.
+- Web benchmark (`benchmarks/web/run.sh`): Compatible vs Performance on the same app.
+- PHPT runner (official PHP test suite), CI on GitHub Actions for PHP 7.4 → 8.5.
+
+## Two run modes at a glance
+
+| | **Compatible** | **Performance** |
 |---|---|---|
-| Dành cho | Mọi site: WordPress, Laravel, code cũ, aaPanel | API và ứng dụng mới cần tốc độ cao |
-| Cách chạy | nginx → PHP-FPM (như PHP truyền thống) | nginx → `qhturbo-serve`: worker chạy lâu dài, event loop, async I/O |
-| PHP | 7.4 → 8.5 | 8.1 → 8.5 (Fiber) |
-| Sửa code | **Không** | Tuân thủ [quy tắc trạng thái](docs/modes/performance.md#3-quy-tắc-quản-lý-trạng-thái-bắt-buộc) (có công cụ quét và chế độ kiểm tra nghiêm) |
-| Đã kiểm chứng | Composer + Laravel 13 (test pass), app cũ (session/cookie/upload/SQLite) qua nginx → FPM | 15 test runtime; tải liên tục không rò RAM |
-| Tốc độ (framework giả lập, 4 vCPU) | ~3.000 req/s | **~21.000–23.000 req/s (7–8×)**; I/O: 2.389 so với 939 req/s, dùng một nửa RAM |
-| Tài liệu | [docs/modes/compatible.md](docs/modes/compatible.md) | [docs/modes/performance.md](docs/modes/performance.md) |
+| For | Any site: WordPress, Laravel, legacy code, aaPanel | APIs and new apps that need high throughput |
+| How it runs | nginx → PHP-FPM | nginx → `qhturbo-serve` (long-lived workers, event loop, async I/O) |
+| PHP | 7.4 → 8.5 | 8.1 → 8.5 (Fibers) |
+| Code changes | **None** | Follow the [state rules](docs/modes/performance.md) (scanner + strict mode help) |
+| Throughput (synthetic framework, 4 vCPU) | ~3,000 req/s | **~21,000–23,600 req/s (7–8×)** |
+| I/O-bound requests (3 × 20 ms backend calls) | 939 req/s, 104 MiB (64 FPM children) | **2,389 req/s, 56 MiB** |
 
-Cài đặt cả hai: `QHT_PROFILE=full scripts/build.sh baseline && sudo -E scripts/install.sh` (vào `/opt/qhturbo/<nhánh>`, **song song** với PHP đang có, không ghi đè). Đề xuất cải tiến tiếp theo: [docs/proposals.md](docs/proposals.md).
+## Measured results
 
-## Kết quả đã đo được
+Full data and method: [logs/benchmarks.md](logs/benchmarks.md), [`results/`](results/).
 
-Toàn bộ số liệu, cách đo và giới hạn: [logs/benchmarks.md](logs/benchmarks.md) và thư mục [`results/`](results/).
+**What actually makes PHP faster** (PHP 8.5.12):
 
-**1. Những gì thực sự làm PHP nhanh hơn hôm nay** (PHP 8.5.12, 9 workload CPU):
-
-| Thay đổi | Tốc độ (geomean) | Ghi chú |
+| Change | Speed-up | Notes |
 |---|---|---|
-| Nâng 7.4 → 8.5, vẫn dùng interpreter | **1.05×** | Ít hơn nhiều người nghĩ; một số vòng lặp số còn chậm hơn |
-| Nâng 7.4 → 8.5 **và bật JIT** | **1.69×** | fannkuch/spectral_norm nhanh hơn 3.5–3.8× |
-| Bật JIT trên 8.5 (so với interpreter) | **1.56×** | Lợi lớn cho code tính toán, gần như 0 cho json/chuỗi/mảng |
-| PGO (build lại PHP bằng profile) | +0.3% / −3.2% | **NO-GO**: không ổn định, có thoái lui |
+| Long-lived workers instead of PHP-FPM (Performance mode) | **7–8×** | Removes the per-request framework bootstrap |
+| Async I/O instead of blocking FPM children | **2.5×** with half the RAM | When requests wait on other services |
+| Enable JIT on 8.5 (CPU benchmarks) | 1.56× | Large for numeric PHP code, ~0 for JSON/string/array work |
+| Upgrade 7.4 → 8.5 (interpreter only) | 1.05× | Smaller than most expect; 1.69× with JIT |
+| PGO-optimised binary | +0.3% / −3.2% | **NO-GO**: no stable gain |
 
-**2. So với ngôn ngữ phổ biến** (hệ số tốc độ so với PHP 8.5 interpreter, >1 là nhanh hơn PHP):
+**PHP vs popular languages** (speed relative to the PHP 8.5 interpreter; >1 means faster than PHP):
 
 | | PHP 8.5 JIT | Python 3.13 | Node.js 22 | Go 1.24 |
 |---|---|---|---|---|
-| Trung bình (geomean) | 1.56× | **0.36×** | 3.36× | 4.16× |
-| Mảng kết hợp (`hashmap`) | 1.09× | 0.41× | **0.48×** | **0.83×** |
-| Xử lý chuỗi (`strings`) | 1.03× | 0.47× | **0.37×** | 0.95× |
+| Geometric mean (9 CPU workloads) | 1.56× | **0.36×** | 3.36× | 4.16× |
+| Hash maps (associative arrays) | 1.09× | 0.41× | **0.48×** | **0.83×** |
+| String processing | 1.03× | 0.47× | **0.37×** | 0.95× |
 | JSON | 0.99× | 0.53× | 1.22× | **0.41×** |
-| Tính toán số (`nbody`) | 1.36× | 0.43× | 12.0× | 25.8× |
+| Numeric (`nbody`) | 1.36× | 0.43× | 12.0× | 25.8× |
 
-- PHP **nhanh hơn Python** ở mọi bài (khoảng 2.8×, có JIT thì khoảng 4.3×).
-- PHP **nhanh hơn Node.js và ngang hoặc nhanh hơn Go** ở mảng kết hợp và xử lý chuỗi. Với JSON, PHP nhanh hơn Go 2.4× nhưng chậm hơn Node.js 1.2×. Đây là những loại việc rất phổ biến trong ứng dụng web.
-- PHP **chậm hơn nhiều** ở tính toán số thuần và OOP nặng. Đây là giới hạn kiến trúc. Muốn thu hẹp khoảng cách này thì phải sửa Zend VM/JIT (Phase 2–4), không thể làm bằng cấu hình.
+PHP beats Python everywhere. It beats Node.js and matches or beats Go on hash maps and strings, and beats Go on JSON. It is far behind both on pure numeric code; closing that gap needs Zend VM/JIT work, not configuration.
 
-## Phiên bản hỗ trợ
+## Supported versions
 
-| Nhánh | Tag upstream | Hỗ trợ upstream | JIT |
-|---|---|---|---|
-| 7.4 | php-7.4.33 | ⚠️ EOL | Không |
-| 8.0 | php-8.0.30 | ⚠️ EOL | Có |
-| 8.1 | php-8.1.34 | ⚠️ EOL | Có |
-| 8.2 | php-8.2.35 | Chỉ vá bảo mật | Có |
-| 8.3 | php-8.3.36 | Chỉ vá bảo mật | Có |
-| 8.4 | php-8.4.27 | Đầy đủ | Có |
-| 8.5 | php-8.5.12 | Đầy đủ | Có |
+| Branch | Upstream tag | Upstream support | JIT | Performance mode |
+|---|---|---|---|---|
+| 7.4 | php-7.4.33 | ⚠️ end of life | no | no |
+| 8.0 | php-8.0.30 | ⚠️ end of life | yes | no |
+| 8.1 | php-8.1.34 | ⚠️ end of life | yes | yes |
+| 8.2 | php-8.2.35 | security fixes only | yes | yes |
+| 8.3 | php-8.3.36 | security fixes only | yes | yes |
+| 8.4 | php-8.4.27 | active | yes | yes |
+| 8.5 | php-8.5.12 | active | yes | yes |
 
-7.4 và 8.5 đã được build, test và đo trong dự án. 8.0 → 8.4 dùng cùng script, nhưng chưa chạy đo đầy đủ. Các nhánh EOL không còn bản vá bảo mật: xem [chính sách tương thích](docs/compatibility-policy.md).
+The `full` profile was built and tested on 7.4 and 8.5; the other branches use the same scripts. CI checks every branch. See the [compatibility policy](docs/compatibility-policy.md).
 
-## Bắt đầu nhanh
+## Quick start
 
-### Windows: đặt dự án tại `D:\usertcd\QHTurbo`
-
-```powershell
-# PowerShell, tài khoản thường. Kiểm tra trước để không ghi đè dữ liệu cũ.
-if (Test-Path D:\usertcd\QHTurbo) { Get-ChildItem -Force D:\usertcd\QHTurbo } 
-git clone https://github.com/tanchinhdo/QHTurbo.git D:\usertcd\QHTurbo
-```
-
-Build PHP cần Linux. Dùng WSL2 (cài một lần, PowerShell Administrator: `wsl --install -d Ubuntu`), rồi trong Ubuntu:
+### On an aaPanel server (Compatible mode, one site at a time)
 
 ```bash
-sudo apt update && sudo apt install -y git build-essential autoconf bison re2c pkg-config python3
-cd /mnt/d/usertcd/QHTurbo
-export QHT_LAB=~/QHTurbo-lab   # php-src + build nằm trên filesystem Linux (nhanh, ít nhiễu)
+git clone https://github.com/tanchinhdo/QHTurbo.git /opt/qhturbo-src && cd /opt/qhturbo-src
+sudo scripts/aapanel.sh check   --php=8.5                    # inspect only, changes nothing
+sudo scripts/aapanel.sh install --php=8.5                    # build + install + start PHP-FPM (10–40 min)
+sudo scripts/aapanel.sh enable  test.example.com --php=8.5   # switch one site; auto-rollback on errors
+sudo scripts/aapanel.sh disable test.example.com             # back to aaPanel's PHP
 ```
 
-### Build, test, đo (Linux hoặc WSL)
+Full guide: [docs/aapanel.md](docs/aapanel.md).
+
+### Any Linux server (or Windows via WSL2)
 
 ```bash
-export QHT_PHP=8.5                     # hoặc 7.4, 8.0, 8.1, 8.2, 8.3, 8.4
-scripts/bootstrap.sh                   # clone php-src, xác minh tag/commit
-scripts/build.sh baseline              # PHP gốc
-scripts/build.sh qhturbo               # PHP gốc + patches/$QHT_PHP/
-scripts/run-tests.sh qhturbo opcache   # bộ PHPT chính thức (interp | opcache | jit)
-
-# So sánh biến thể (A/A khi chưa có patch = đo độ nhiễu của máy)
-taskset -c 2 python3 scripts/bench.py php --variants baseline,qhturbo --runs 10
-
-# So sánh phiên bản PHP, hoặc với Python / Node.js / Go
-python3 scripts/bench.py cross --php 7.4,8.5 --langs php
-python3 scripts/bench.py cross --php 8.5 --langs python,node,go
+sudo apt install -y git build-essential autoconf bison re2c pkg-config python3 \
+  libxml2-dev libssl-dev libsqlite3-dev zlib1g-dev libcurl4-openssl-dev libzip-dev \
+  libonig-dev libicu-dev libsodium-dev libpng-dev libjpeg-dev libfreetype-dev libgmp-dev libreadline-dev
+git clone https://github.com/tanchinhdo/QHTurbo.git && cd QHTurbo
+export QHT_LAB=~/QHTurbo-lab QHT_PHP=8.5          # QHT_PHP: 7.4 … 8.5
+scripts/bootstrap.sh                               # fetch + verify the upstream tag
+QHT_PROFILE=full scripts/build.sh baseline         # PHP + PHP-FPM
+sudo -E scripts/install.sh                         # -> /opt/qhturbo/8.5, beside the system PHP
+/opt/qhturbo/8.5/bin/php /opt/qhturbo/8.5/share/qhturbo/qht-doctor.php
 ```
 
-Binary nằm ở `$QHT_LAB/build/<nhánh>/<biến thể>/bin/php`, kèm `BUILD-INFO.txt` (sha256, cờ build, danh sách patch).
+On Windows, install WSL2 (`wsl --install -d Ubuntu`) and build inside the Linux filesystem (`~/…`), not on a Windows drive.
 
-## Áp dụng cho máy chủ ngay hôm nay
+### Performance mode
 
-Chưa cần binary QHturbo vẫn làm được (xem [`config/ini/`](config/ini/)):
+```php
+<?php // app.php: runs once per worker
+use QHTurbo\Runtime\Http\{Request, Response};
 
-1. **Nâng lên PHP 8.3+** nếu ứng dụng cho phép (bảo mật + JIT + ít RAM hơn).
-2. **OPcache production**: `opcache.validate_timestamps=0` (deploy xong thì reload FPM), đủ `memory_consumption` và `max_accelerated_files`.
-3. **JIT** (`opcache.jit=tracing`): bật cho ứng dụng nặng tính toán. Với web thông thường, đo trước rồi mới bật.
-4. **Preload** cho framework lớn (Laravel, Symfony).
-5. Phần lớn độ trễ web nằm ở **MySQL/Redis/I/O**, không nằm ở Zend VM. Hãy tối ưu query, index và cache trước (Phase 5).
+$config = require __DIR__ . '/config.php';           // booted once, reused
 
-## Cấu trúc
+return function (Request $request) use ($config): Response|array {
+    return ['path' => $request->path(), 'env' => $config['env']];  // per request
+};
+```
+
+```bash
+php runtime/bin/qhturbo-serve app.php --port=8080 --workers=4 --strict-state
+```
+
+Details, options and state rules: [docs/modes/performance.md](docs/modes/performance.md).
+
+### Research and benchmarks
+
+```bash
+scripts/run-tests.sh baseline opcache                               # official PHPT suite
+python3 scripts/bench.py php --variants baseline,qhturbo --runs 10  # compare builds (A/A noise check)
+python3 scripts/bench.py cross --php 7.4,8.5 --langs php            # compare PHP versions
+python3 scripts/bench.py cross --php 8.5 --langs python,node,go     # compare languages
+sudo benchmarks/web/run.sh                                          # Compatible vs Performance over HTTP
+```
+
+## Repository layout
 
 ```text
-config/versions/   tag + commit upstream được ghim cho từng nhánh
-config/build.env   cờ configure dùng chung
-config/ini/        profile OPcache / JIT / preload
-patches/<nhánh>/   chuỗi bản vá mã nguồn (hiện trống)
-config/modes/      cấu hình chế độ Compatible (FPM) và Performance (worker)
-runtime/           QHturbo Performance: event loop, async, HTTP server, worker, quy tắc trạng thái
-scripts/           bootstrap, build, install, package, run-tests, bench.py, qht-doctor, fpm-tune...
-benchmarks/        workload PHP/Python/JS/Go, benchmark web 2 chế độ, tập huấn luyện PGO
-results/           báo cáo benchmark và PHPT
-logs/              nhật ký phát triển, vấn đề, benchmark
-docs/              kiến trúc, chính sách, phương pháp, 6 phase, kế hoạch gốc
+config/versions/   pinned upstream tag + commit per PHP branch
+config/build.env   configure flags (minimal / full profiles)
+config/modes/      Compatible (FPM) and Performance (worker) configuration templates
+config/ini/        OPcache / JIT / preload profiles
+patches/<branch>/  source patch series (empty: no engine patches yet)
+runtime/           QHturbo Performance: event loop, async, HTTP server, workers, state guard (+15 tests)
+scripts/           bootstrap, build, install, package, aapanel, install-ext, run-tests, bench.py, qht-doctor, fpm-tune
+benchmarks/        CPU workloads in PHP/Python/JS/Go, web benchmark, PGO training set
+tests/             cross-language output check, aaPanel end-to-end simulation
+results/           benchmark and PHPT reports
+logs/              development log, issues, benchmark log
+docs/              architecture, modes, aaPanel guide, proposals, policies, phases
 ```
 
-Chi tiết: [docs/architecture.md](docs/architecture.md) · Lộ trình: [ROADMAP.md](ROADMAP.md) · Kế hoạch gốc: [docs/KE-HOACH-GOC.md](docs/KE-HOACH-GOC.md)
+## Documentation
 
-## Nguyên tắc
+Detailed documentation is currently written in Vietnamese:
 
-Không công bố nhanh hơn nếu không có số đo tái lập được. Không phá tương thích PHP. Không sửa thẳng production. Mỗi thay đổi có mã công việc, test, số đo và ghi chép. Thử mà không có lợi thì ghi NO-GO, không giấu đi.
+- [docs/aapanel.md](docs/aapanel.md): install on aaPanel step by step
+- [docs/modes/compatible.md](docs/modes/compatible.md), [docs/modes/performance.md](docs/modes/performance.md): the two run modes
+- [docs/proposals.md](docs/proposals.md): prioritised improvement proposals
+- [docs/architecture.md](docs/architecture.md), [docs/benchmark-methodology.md](docs/benchmark-methodology.md), [docs/compatibility-policy.md](docs/compatibility-policy.md), [docs/security-and-release.md](docs/security-and-release.md)
+- [ROADMAP.md](ROADMAP.md), [PROJECT_STATUS.md](PROJECT_STATUS.md), [CHANGELOG.md](CHANGELOG.md), original plan: [docs/KE-HOACH-GOC.md](docs/KE-HOACH-GOC.md)
+
+## Principles
+
+No speed claim without reproducible measurements. No PHP compatibility breaks. No changes straight to production: build, then staging, then canary, always with a rollback. Every change has a task ID, tests, measurements and a log entry. Experiments that do not help are recorded as NO-GO, not hidden.

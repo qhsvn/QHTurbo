@@ -49,5 +49,5 @@ Khi `patches/<nhánh>/series` trống, `qhturbo` có **cùng mã nguồn** với
 
 1. Không công bố "nhanh hơn X%" nếu CI 95% chứa 1.0.
 2. Báo cáo cả workload chậm đi, không chỉ chọn workload đẹp.
-3. Benchmark chính thức chạy trên filesystem Linux (WSL: `~/QHTurbo-lab`, không phải `/mnt/d`).
+3. Benchmark chính thức chạy trên filesystem Linux (WSL: `~/QHTurbo-lab`, không phải ổ Windows dưới `/mnt/`).
 4. Máy ảo dùng chung (cloud) có nhiễu cao. CV > 5% thì tăng `--runs` hoặc đo lại trên máy riêng.

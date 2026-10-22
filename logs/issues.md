@@ -16,13 +16,13 @@
   3. Biên dịch riêng các file có global register với `-fno-lto`: cần sửa build system. Để lại cho Phase 4.
 - **Trạng thái:** đóng (dùng lựa chọn 2), mục theo dõi nằm trong `docs/phases/phase-04-compiler-jit.md`.
 
-## ISSUE-002 — Không truy cập được ổ D: từ môi trường build đám mây
+## ISSUE-002 — Không truy cập được máy Windows của người dùng từ môi trường build đám mây
 
 - **Ngày:** 2026-10-22
-- **Hiện tượng:** phiên làm việc chạy trên máy Linux đám mây, không thấy `D:\usertcd\QHTurbo` trên máy Windows của người dùng.
+- **Hiện tượng:** phiên làm việc chạy trên máy Linux đám mây, không ghi trực tiếp được vào ổ đĩa trên máy Windows của người dùng.
 - **Xử lý:** dự án được đẩy lên GitHub `tanchinhdo/QHTurbo`. Trên Windows chạy:
   ```powershell
-  git clone https://github.com/tanchinhdo/QHTurbo.git D:\usertcd\QHTurbo
+  git clone https://github.com/tanchinhdo/QHTurbo.git
   ```
   Build và benchmark nên chạy trong WSL trên filesystem Linux (`QHT_LAB=~/QHTurbo-lab`). Xem README.
 - **Trạng thái:** đóng.
