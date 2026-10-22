@@ -235,7 +235,7 @@ http_code() { # site -> HTTP status of the site's home page through the local ng
     code="$(curl -sk -o /dev/null -w '%{http_code}' --max-time 15 -H "Host: $site" "$URL")" || true
     echo "${code:-000}"; return
   fi
-  read -r code redirect < <(curl -s -o /dev/null -w '%{http_code} %{redirect_url}\n' --max-time 15 -H "Host: $site" http://127.0.0.1/ || true)
+  read -r code redirect < <(curl -s -o /dev/null -w '%{http_code} %{redirect_url}\n' --max-time 15 -H "Host: $site" http://127.0.0.1/ || true) || true
   # HTTP -> HTTPS redirect: nginx answers before PHP runs, so test HTTPS
   # (certificate not verified: we only want the status code).
   if [[ "$code" =~ ^30[1278]$ && "$redirect" == https://* ]]; then
