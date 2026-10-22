@@ -113,7 +113,7 @@ sudo scripts/aapanel.sh enable  test.example.com --php=8.5   # switch one site; 
 sudo scripts/aapanel.sh disable test.example.com             # back to aaPanel's PHP
 ```
 
-Full guide: [docs/aapanel.md](docs/aapanel.md).
+Full guide: [docs/aapanel.md](docs/aapanel.md). Prefer a UI? Install the [aaPanel plugin](plugins/README.md).
 
 ### Any Linux server (or Windows via WSL2)
 

@@ -1,0 +1,258 @@
+<style>
+  #qht { font-size: 13px; color: #333; }
+  #qht .qht-bar { display: flex; align-items: center; gap: 8px; margin-bottom: 12px; flex-wrap: wrap; }
+  #qht .qht-bar .qht-grow { flex: 1; color: #666; }
+  #qht table { width: 100%; }
+  #qht td, #qht th { vertical-align: middle !important; }
+  #qht .qht-tag { display: inline-block; padding: 1px 8px; border-radius: 10px; font-size: 12px; background: #f0f0f0; color: #555; }
+  #qht .qht-tag.on { background: #e1f3e8; color: #1d7340; }
+  #qht .qht-tag.off { background: #fbf0d9; color: #8a5a00; }
+  #qht .qht-tag.qht { background: #e1f1f3; color: #0a6c78; }
+  #qht pre.qht-log { background: #0f1922; color: #d7e2ea; height: 380px; overflow: auto; padding: 10px 12px; font: 12px/1.55 Menlo, Consolas, monospace; white-space: pre-wrap; border-radius: 4px; margin: 0; }
+  #qht .qht-note { background: #f6f9fb; border-left: 3px solid #0a6c78; padding: 8px 12px; margin: 10px 0; color: #555; line-height: 1.6; }
+  #qht .qht-muted { color: #888; }
+  #qht select.bt-input-text { height: 28px; }
+  #qht .qht-lang a { margin-left: 6px; cursor: pointer; }
+  #qht .qht-lang a.cur { font-weight: bold; text-decoration: none; color: #333; }
+</style>
+
+<div class="bt-form" id="qht">
+  <div class="bt-w-main">
+    <div class="bt-w-menu">
+      <p class="bgw" data-tab="versions" data-i18n="tab_versions">PHP versions</p>
+      <p data-tab="sites" data-i18n="tab_sites">Sites</p>
+      <p data-tab="task" data-i18n="tab_task">Task log</p>
+      <p data-tab="help" data-i18n="tab_help">Help</p>
+    </div>
+    <div class="bt-w-con pd15">
+      <div class="qht-bar">
+        <span class="qht-grow" id="qht-src"></span>
+        <span class="qht-lang">
+          <a data-lang="en">EN</a><a data-lang="vi">VI</a>
+        </span>
+        <button class="btn btn-default btn-sm" id="qht-update" data-i18n="update">Update scripts</button>
+      </div>
+
+      <div class="qht-tab" id="qht-tab-versions">
+        <div class="qht-note" data-i18n="versions_note">Each version is built from the official PHP source and runs beside aaPanel's PHP (aaPanel's PHP is never changed). Pick the same version your sites use. Building takes 10–40 minutes.</div>
+        <table class="table table-hover">
+          <thead><tr><th>PHP</th><th data-i18n="status">Status</th><th data-i18n="in_aapanel">In aaPanel</th><th style="text-align:right" data-i18n="actions">Actions</th></tr></thead>
+          <tbody id="qht-versions"><tr><td colspan="4" class="qht-muted" data-i18n="loading">Loading…</td></tr></tbody>
+        </table>
+      </div>
+
+      <div class="qht-tab" id="qht-tab-sites" style="display:none">
+        <div class="qht-note" data-i18n="sites_note">Switching changes only the PHP handler of the site's config. If the site answers with an error afterwards, it is switched back automatically and the reason is shown in the task log.</div>
+        <table class="table table-hover">
+          <thead><tr><th data-i18n="site">Site</th><th data-i18n="runs_on">Runs on</th><th style="text-align:right" data-i18n="actions">Actions</th></tr></thead>
+          <tbody id="qht-sites"><tr><td colspan="3" class="qht-muted" data-i18n="loading">Loading…</td></tr></tbody>
+        </table>
+      </div>
+
+      <div class="qht-tab" id="qht-tab-task" style="display:none">
+        <div class="qht-bar">
+          <span class="qht-grow" id="qht-job-title"></span>
+          <button class="btn btn-default btn-sm" id="qht-stop" data-i18n="stop" style="display:none">Stop</button>
+        </div>
+        <pre class="qht-log" id="qht-log"></pre>
+      </div>
+
+      <div class="qht-tab" id="qht-tab-help" style="display:none">
+        <div id="qht-help-en">
+          <p><b>Start safely:</b> snapshot the server, then switch a test site first.</p>
+          <ol>
+            <li>PHP versions → <b>Install</b> the version your site uses (for example 7.4 for a site on aaPanel PHP 7.4). Extensions of aaPanel's PHP of that version are copied automatically.</li>
+            <li>Sites → choose the version → <b>Switch</b>. Open the site and check it.</li>
+            <li><b>Back to aaPanel PHP</b> undoes it at any time.</li>
+          </ol>
+          <p>Command line (same actions): <code>/opt/qhturbo-src/scripts/aapanel.sh check|install|enable|disable|status</code></p>
+          <p>Guide: <a href="https://github.com/qhsvn/QHTurbo/blob/main/docs/aapanel.md" target="_blank" rel="noopener">docs/aapanel.md</a> · Website: <a href="https://qhsvn.github.io/QHTurbo/" target="_blank" rel="noopener">qhsvn.github.io/QHTurbo</a> · Issues: <a href="https://github.com/qhsvn/QHTurbo/issues" target="_blank" rel="noopener">GitHub</a></p>
+        </div>
+        <div id="qht-help-vi" style="display:none">
+          <p><b>Bắt đầu an toàn:</b> snapshot máy chủ, rồi chuyển thử một site phụ trước.</p>
+          <ol>
+            <li>Phiên bản PHP → <b>Cài đặt</b> đúng phiên bản site đang dùng (ví dụ 7.4 cho site chạy PHP 7.4 của aaPanel). Extension của PHP aaPanel cùng phiên bản được chép sang tự động.</li>
+            <li>Site → chọn phiên bản → <b>Chuyển</b>. Mở site để kiểm tra.</li>
+            <li><b>Về PHP aaPanel</b> để quay lại bất cứ lúc nào.</li>
+          </ol>
+          <p>Dòng lệnh (cùng thao tác): <code>/opt/qhturbo-src/scripts/aapanel.sh check|install|enable|disable|status</code></p>
+          <p>Hướng dẫn: <a href="https://github.com/qhsvn/QHTurbo/blob/main/docs/aapanel.vi.md" target="_blank" rel="noopener">docs/aapanel.vi.md</a> · Trang web: <a href="https://qhsvn.github.io/QHTurbo/#vi" target="_blank" rel="noopener">qhsvn.github.io/QHTurbo</a> · Báo lỗi: <a href="https://github.com/qhsvn/QHTurbo/issues" target="_blank" rel="noopener">GitHub</a></p>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script type="text/javascript">
+(function () {
+  var T = {
+    en: {
+      tab_versions: 'PHP versions', tab_sites: 'Sites', tab_task: 'Task log', tab_help: 'Help', update: 'Update scripts',
+      versions_note: "Each version is built from the official PHP source and runs beside aaPanel's PHP (aaPanel's PHP is never changed). Pick the same version your sites use. Building takes 10–40 minutes.",
+      sites_note: "Switching changes only the PHP handler of the site's config. If the site answers with an error afterwards, it is switched back automatically and the reason is shown in the task log.",
+      status: 'Status', in_aapanel: 'In aaPanel', actions: 'Actions', site: 'Site', runs_on: 'Runs on', stop: 'Stop', loading: 'Loading…',
+      not_installed: 'Not installed', running: 'Running', stopped: 'Installed, stopped', yes: 'yes', no: '—',
+      install: 'Install', reinstall: 'Rebuild', sync: 'Copy extensions', check: 'Check', remove: 'Remove',
+      switch_to: 'Switch', back: "Back to aaPanel PHP", aapanel_php: 'aaPanel PHP', qhturbo_php: 'QHturbo PHP', no_php: 'no PHP',
+      no_sites: 'No sites found.', none_installed: 'Install a version first', task_running: 'Running: ', task_done: 'Finished: ',
+      task_failed: 'Failed: ', no_task: 'No task yet.', confirm_install: 'Build and install QHturbo PHP {v}? This takes 10–40 minutes and uses a lot of CPU.',
+      confirm_switch: 'Switch {s} to QHturbo PHP {v}? It is switched back automatically if the site returns errors.',
+      confirm_back: "Switch {s} back to aaPanel's PHP?", confirm_remove: 'Remove QHturbo PHP {v}? Sites using it go back to aaPanel PHP first.',
+      not_ready: 'QHturbo scripts are missing in {src}. Reinstall the plugin.', source: 'Scripts: {src} ({rev})'
+    },
+    vi: {
+      tab_versions: 'Phiên bản PHP', tab_sites: 'Site', tab_task: 'Nhật ký tác vụ', tab_help: 'Hướng dẫn', update: 'Cập nhật script',
+      versions_note: 'Mỗi phiên bản được build từ mã nguồn PHP chính thức và chạy song song với PHP của aaPanel (PHP aaPanel không bị thay đổi). Hãy chọn đúng phiên bản mà site đang dùng. Build mất 10–40 phút.',
+      sites_note: 'Chuyển site chỉ đổi phần xử lý PHP trong cấu hình của site. Nếu sau đó site báo lỗi, site được tự chuyển về như cũ và lý do hiện trong nhật ký tác vụ.',
+      status: 'Trạng thái', in_aapanel: 'Có trong aaPanel', actions: 'Thao tác', site: 'Site', runs_on: 'Đang chạy', stop: 'Dừng', loading: 'Đang tải…',
+      not_installed: 'Chưa cài', running: 'Đang chạy', stopped: 'Đã cài, đang dừng', yes: 'có', no: '—',
+      install: 'Cài đặt', reinstall: 'Build lại', sync: 'Chép extension', check: 'Kiểm tra', remove: 'Gỡ',
+      switch_to: 'Chuyển', back: 'Về PHP aaPanel', aapanel_php: 'PHP aaPanel', qhturbo_php: 'PHP QHturbo', no_php: 'không có PHP',
+      no_sites: 'Không có site nào.', none_installed: 'Hãy cài một phiên bản trước', task_running: 'Đang chạy: ', task_done: 'Đã xong: ',
+      task_failed: 'Thất bại: ', no_task: 'Chưa có tác vụ.', confirm_install: 'Build và cài PHP QHturbo {v}? Mất 10–40 phút và dùng nhiều CPU.',
+      confirm_switch: 'Chuyển {s} sang PHP QHturbo {v}? Site sẽ tự quay lại nếu báo lỗi.',
+      confirm_back: 'Chuyển {s} về PHP của aaPanel?', confirm_remove: 'Gỡ PHP QHturbo {v}? Các site đang dùng sẽ được chuyển về PHP aaPanel trước.',
+      not_ready: 'Không thấy script QHturbo trong {src}. Hãy cài lại plugin.', source: 'Script: {src} ({rev})'
+    }
+  };
+  var lang = 'en';
+  try { lang = localStorage.getItem('qht-lang') || ((navigator.language || '').toLowerCase().indexOf('vi') === 0 ? 'vi' : 'en'); } catch (e) {}
+  var state = { versions: [], sites: [], job: null };
+  var timer = null;
+
+  function t(key, vars) {
+    var s = (T[lang] && T[lang][key]) || T.en[key] || key;
+    for (var k in (vars || {})) { s = s.split('{' + k + '}').join(vars[k]); }
+    return s;
+  }
+  function esc(s) { return $('<div>').text(s == null ? '' : String(s)).html(); }
+  function notify(msg, ok) { if (window.layer) { layer.msg(msg, { icon: ok ? 1 : 2 }); } else { alert(msg); } }
+  function ask(msg, yes) { if (window.layer) { layer.confirm(msg, { title: 'QHturbo', closeBtn: 2 }, function (i) { layer.close(i); yes(); }); } else if (confirm(msg)) { yes(); } }
+
+  function call(method, data, cb) {
+    var headers = {};
+    var tok = document.getElementById('request_token_head');
+    if (tok && tok.getAttribute('token')) headers['x-http-token'] = tok.getAttribute('token');
+    $.ajax({ url: '/plugin?action=a&name=qhturbo&s=' + method, type: 'POST', data: data || {}, headers: headers, dataType: 'json',
+      success: function (r) { cb && cb(r || {}); },
+      error: function (x) { notify('HTTP ' + x.status + ' ' + method, false); } });
+  }
+
+  function applyLang() {
+    $('#qht [data-i18n]').each(function () { $(this).text(t($(this).data('i18n'))); });
+    $('#qht .qht-lang a').each(function () { $(this).toggleClass('cur', $(this).data('lang') === lang); });
+    $('#qht-help-en').toggle(lang === 'en'); $('#qht-help-vi').toggle(lang === 'vi');
+    render();
+  }
+
+  function render() {
+    var vb = $('#qht-versions').empty();
+    state.versions.forEach(function (v) {
+      var st = v.installed ? (v.running ? '<span class="qht-tag on">' + t('running') + ' · ' + esc(v.version) + '</span>'
+                                        : '<span class="qht-tag off">' + t('stopped') + ' · ' + esc(v.version) + '</span>')
+                           : '<span class="qht-tag">' + t('not_installed') + '</span>';
+      var btns = v.installed
+        ? '<button class="btn btn-default btn-xs" data-act="sync" data-v="' + v.branch + '">' + t('sync') + '</button> ' +
+          '<button class="btn btn-default btn-xs" data-act="check" data-v="' + v.branch + '">' + t('check') + '</button> ' +
+          '<button class="btn btn-default btn-xs" data-act="install" data-v="' + v.branch + '">' + t('reinstall') + '</button> ' +
+          '<button class="btn btn-danger btn-xs" data-act="remove" data-v="' + v.branch + '">' + t('remove') + '</button>'
+        : '<button class="btn btn-success btn-xs" data-act="install" data-v="' + v.branch + '">' + t('install') + '</button>';
+      vb.append('<tr><td><b>' + v.branch + '</b></td><td>' + st + '</td><td>' + (v.aapanel ? t('yes') : t('no')) +
+                '</td><td style="text-align:right">' + btns + '</td></tr>');
+    });
+
+    var installed = state.versions.filter(function (v) { return v.installed; }).map(function (v) { return v.branch; });
+    var sb = $('#qht-sites').empty();
+    if (!state.sites.length) sb.append('<tr><td colspan="3" class="qht-muted">' + t('no_sites') + '</td></tr>');
+    state.sites.forEach(function (s) {
+      var on = s.qhturbo
+        ? '<span class="qht-tag qht">' + t('qhturbo_php') + ' ' + esc(s.qhturbo) + '</span>' + (s.php ? ' <span class="qht-muted">(' + t('aapanel_php') + ' ' + esc(s.php) + ')</span>' : '')
+        : (s.php ? '<span class="qht-tag">' + t('aapanel_php') + ' ' + esc(s.php) + '</span>' : '<span class="qht-muted">' + t('no_php') + '</span>');
+      var act;
+      if (s.qhturbo) {
+        act = '<button class="btn btn-default btn-xs" data-act="back" data-s="' + esc(s.site) + '" data-v="' + esc(s.qhturbo) + '">' + t('back') + '</button>';
+      } else if (!s.php) {
+        act = '';
+      } else if (!installed.length) {
+        act = '<span class="qht-muted">' + t('none_installed') + '</span>';
+      } else {
+        var pick = installed.indexOf(s.php) >= 0 ? s.php : installed[installed.length - 1];
+        act = '<select class="bt-input-text" data-for="' + esc(s.site) + '">' + installed.map(function (b) {
+          return '<option' + (b === pick ? ' selected' : '') + '>' + b + '</option>'; }).join('') + '</select> ' +
+          '<button class="btn btn-success btn-xs" data-act="switch" data-s="' + esc(s.site) + '">' + t('switch_to') + '</button>';
+      }
+      sb.append('<tr><td>' + esc(s.site) + ' <span class="qht-muted">' + esc(s.web) + '</span></td><td>' + on +
+                '</td><td style="text-align:right">' + act + '</td></tr>');
+    });
+
+    var j = state.job;
+    if (j && (j.title || j.log)) {
+      var label = j.running ? t('task_running') : (j.exit === 0 ? t('task_done') : t('task_failed'));
+      $('#qht-job-title').text(label + (j.title || ''));
+      var box = $('#qht-log')[0], atEnd = box.scrollTop + box.clientHeight >= box.scrollHeight - 20;
+      $('#qht-log').text(j.log || '');
+      if (atEnd) box.scrollTop = box.scrollHeight;
+      $('#qht-stop').toggle(!!j.running);
+    } else {
+      $('#qht-job-title').text(t('no_task')); $('#qht-log').text(''); $('#qht-stop').hide();
+    }
+  }
+
+  function load() {
+    call('get_overview', {}, function (r) {
+      var d = r.data || {};
+      if (!d.ready) { $('#qht-src').text(t('not_ready', { src: d.src || '/opt/qhturbo-src' })); return; }
+      $('#qht-src').text(t('source', { src: d.src, rev: d.revision || '?' }));
+      state.versions = d.versions || []; state.sites = d.sites || []; state.job = d.job;
+      render();
+      if (d.job && d.job.running) poll();
+    });
+  }
+
+  function poll() {
+    clearTimeout(timer);
+    call('get_job', {}, function (r) {
+      var was = state.job && state.job.running;
+      state.job = r.data; render();
+      if (r.data && r.data.running) { timer = setTimeout(poll, 2000); }
+      else if (was) { load(); notify((r.data.exit === 0 ? t('task_done') : t('task_failed')) + r.data.title, r.data.exit === 0); }
+    });
+  }
+
+  function start(method, data) {
+    call(method, data, function (r) {
+      notify(r.msg || method, r.status);
+      if (r.status) { showTab('task'); poll(); }
+    });
+  }
+
+  function showTab(name) {
+    $('#qht .bt-w-menu p').removeClass('bgw').filter('[data-tab="' + name + '"]').addClass('bgw');
+    $('#qht .qht-tab').hide(); $('#qht-tab-' + name).show();
+  }
+
+  $('#qht .bt-w-menu p').on('click', function () { showTab($(this).data('tab')); });
+  $('#qht .qht-lang a').on('click', function () { lang = $(this).data('lang'); try { localStorage.setItem('qht-lang', lang); } catch (e) {} applyLang(); });
+  $('#qht-stop').on('click', function () { call('stop_job', {}, function (r) { notify(r.msg, r.status); poll(); }); });
+  $('#qht-update').on('click', function () {
+    call('update_source', {}, function (r) { notify(r.msg, r.status); if (r.data) { showTab('task'); $('#qht-job-title').text(t('update')); $('#qht-log').text(r.data.output); } load(); });
+  });
+  $('#qht').on('click', 'button[data-act]', function () {
+    var b = $(this), act = b.data('act'), v = String(b.data('v') || ''), s = String(b.data('s') || '');
+    if (act === 'install') ask(t('confirm_install', { v: v }), function () { start('install_php', { version: v }); });
+    if (act === 'sync') start('sync_ext', { version: v });
+    if (act === 'remove') ask(t('confirm_remove', { v: v }), function () { start('uninstall_php', { version: v }); });
+    if (act === 'check') {
+      call('get_check', { version: v }, function (r) { showTab('task'); $('#qht-job-title').text(t('check') + ' PHP ' + v); $('#qht-log').text(r.data ? r.data.output : r.msg); $('#qht-stop').hide(); });
+    }
+    if (act === 'switch') {
+      var pv = String(b.siblings('select').val());
+      ask(t('confirm_switch', { s: s, v: pv }), function () { start('enable_site', { site: s, version: pv }); });
+    }
+    if (act === 'back') ask(t('confirm_back', { s: s }), function () { start('disable_site', { site: s, version: v }); });
+  });
+
+  applyLang();
+  load();
+})();
+</script>

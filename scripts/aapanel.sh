@@ -14,6 +14,7 @@
 #                                                       also runs after install and before enable
 #                                                       (NO_SYNC_EXT=1 to skip)
 #   sudo scripts/aapanel.sh uninstall [--php=8.5]       disable all sites, stop + remove the service
+#   scripts/aapanel.sh versions | sites                 machine-readable lists (tab-separated) for the panel plugin
 #
 # Works with aaPanel's nginx or Apache (detected; force with --web=nginx|apache).
 # <site> is the vhost file name in /www/server/panel/vhost/{nginx,apache}/
@@ -29,7 +30,7 @@ WEB=""                                   # nginx | apache (detected, or --web=)
 QHT_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 export QHT_LAB="${QHT_LAB:-/opt/qhturbo-lab}"
 PHPV=8.5
-URL=""
+URL="${QHT_URL:-}"                    # --url=; QHT_URL for the panel plugin tests
 SYSTEMD=1
 [[ -d /run/systemd/system ]] || SYSTEMD=0
 
@@ -375,7 +376,7 @@ do_enable() {
   [[ -n "$site" ]] || die "usage: $0 enable <site> [--php=$PHPV]"
   vhost="$VHOSTS/$site.conf"
   [[ -f "$vhost" ]] || die "vhost not found: $vhost (run '$0 check' to list sites)"
-  [[ -S "$SOCK" ]] || die "QHturbo PHP $PHPV is not running ($SOCK missing); run '$0 install --php=$PHPV' first"
+  fpm_alive "$TAG" || die "QHturbo PHP $PHPV is not running; start it (systemctl start $SERVICE) or run '$0 install --php=$PHPV'"
   [[ "$WEB" == apache || -f "$NGINX_CONF/$INCLUDE" ]] || write_include
   if uses_qhturbo "$vhost"; then
     log "$site already uses QHturbo ($(qhturbo_label "$vhost"))"; return 0
@@ -455,11 +456,52 @@ do_status() {
   for d in /opt/qhturbo/*/; do
     [[ -x "$d/sbin/php-fpm" ]] || continue
     local t; t="$(basename "$d")"; t="${t/./}"
-    if [[ -S "/run/qhturbo/php$t-fpm.sock" ]]; then
+    if fpm_alive "$t"; then
       log "$("$d/bin/php" -r 'echo "PHP ", PHP_VERSION;') in $d: FPM running (/run/qhturbo/php$t-fpm.sock)"
     else
       warn "$d: FPM not running"
     fi
+  done
+}
+
+# PHP-FPM really running (a socket file alone may be left over from a crash).
+fpm_alive() { # tag
+  local pid
+  pid="$(cat "/run/qhturbo/php$1-fpm.pid" 2>/dev/null || true)"
+  [[ -S "/run/qhturbo/php$1-fpm.sock" && -n "$pid" ]] && kill -0 "$pid" 2>/dev/null
+}
+
+# Tab-separated, one line per supported PHP branch:
+#   branch  installed(0|1)  fpm_running(0|1)  php_version  aapanel_php(0|1)
+do_versions() {
+  local f v t installed running ver panel
+  for f in "$QHT_ROOT"/config/versions/*.env; do
+    v="$(basename "$f" .env)"; t="${v/./}"
+    installed=0 running=0 ver="" panel=0
+    if [[ -x "/opt/qhturbo/$v/sbin/php-fpm" ]]; then
+      installed=1
+      ver="$("/opt/qhturbo/$v/bin/php" -n -r 'echo PHP_VERSION;' 2>/dev/null || true)"
+    fi
+    fpm_alive "$t" && running=1
+    [[ -x "$ROOT/www/server/php/$t/bin/php" ]] && panel=1
+    printf '%s\t%s\t%s\t%s\t%s\n' "$v" "$installed" "$running" "${ver:--}" "$panel"
+  done
+}
+
+# Tab-separated, one line per site:
+#   site  web_server  original_php_tag(or -)  qhturbo_tag(or -)
+do_sites() {
+  local f site cur qht
+  [[ -n "$WEB" ]] || return 0
+  for f in "$VHOSTS"/*.conf; do
+    [[ -e "$f" ]] || continue
+    site="$(basename "$f" .conf)"
+    cur="$(grep -oE '(php-cgi-|enable-php-)[0-9]+' "$f" | head -1 | grep -oE '[0-9]+$' || true)"
+    qht="$(grep -oE '(enable-php-qhturbo|/run/qhturbo/php)[0-9]+' "$f" | head -1 | grep -oE '[0-9]+$' || true)"
+    if [[ -n "$qht" ]]; then
+      cur="$(grep -oE '(php-cgi-|enable-php-)[0-9]+' "$f.qhturbo-orig" 2>/dev/null | head -1 | grep -oE '[0-9]+$' || true)"
+    fi
+    printf '%s\t%s\t%s\t%s\n' "$site" "$WEB" "${cur:--}" "${qht:--}"
   done
 }
 
@@ -489,6 +531,8 @@ case "$cmd" in
   disable) do_disable ;;
   status) do_status ;;
   sync-ext) need_root; do_sync_ext ;;
+  versions) do_versions ;;
+  sites) do_sites ;;
   sync-ini)
     need_root; sync_aapanel_ini
     if [[ -f "/run/qhturbo/php$TAG-fpm.pid" ]] && kill -USR2 "$(cat "/run/qhturbo/php$TAG-fpm.pid")" 2> /dev/null; then

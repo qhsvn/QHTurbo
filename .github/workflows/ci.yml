@@ -12,10 +12,12 @@ jobs:
       - uses: actions/checkout@v4
       - name: Shell syntax + shellcheck
         run: |
-          for f in scripts/*.sh tests/*.sh; do bash -n "$f"; done
-          shellcheck -S warning -x scripts/*.sh tests/*.sh
+          for f in scripts/*.sh tests/*.sh plugins/*.sh plugins/*/*/*.sh; do bash -n "$f"; done
+          shellcheck -S warning -x scripts/*.sh tests/*.sh plugins/*.sh plugins/*/*/*.sh
       - name: Python syntax
-        run: python3 -m py_compile scripts/*.py
+        run: python3 -m py_compile scripts/*.py plugins/aapanel/qhturbo/*.py tests/*.py
+      - name: Plugin package matches its sources
+        run: plugins/build.sh --check
 
   # Workloads must run unchanged on every supported PHP branch.
   workloads:

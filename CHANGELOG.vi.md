@@ -6,6 +6,10 @@
 
 ## [Unreleased]
 
+### Added — plugin aaPanel (2026-10-22)
+- `plugins/aapanel/qhturbo`: plugin aaPanel (file zip để Import trong App Store, hoặc chép bằng dòng lệnh). Thẻ Phiên bản PHP (cài, chép extension, kiểm tra, build lại, gỡ), thẻ Site (chuyển sang QHturbo hoặc quay lại, từng site), nhật ký tác vụ trực tiếp; tiếng Anh và tiếng Việt. Plugin chạy đúng các script dòng lệnh; tác vụ dài chạy nền, tách khỏi panel. Đã test trên aaPanel mô phỏng (`tests/aapanel-plugin.py`, 13 kiểm tra). Plugin DirectAdmin và cPanel đang lên kế hoạch.
+- `aapanel.sh versions|sites`: danh sách phân cách bằng tab cho plugin; FPM chỉ được tính là đang chạy khi tiến trình còn sống (không chỉ dựa vào file socket còn sót).
+
 ### Added / Fixed — lần chạy đầu trên server aaPanel thật (2026-10-22)
 - `aapanel.sh` hỗ trợ aaPanel dùng **Apache** (tự nhận biết, hoặc `--web=nginx|apache`): `enable` trỏ dòng `SetHandler "proxy:unix:...|fcgi://localhost"` của site sang QHturbo, vẫn có backup, kiểm tra cấu hình và tự rollback như với nginx. Test mới `tests/aapanel-sim-apache.sh` (14/14).
 - Site không kết nối được MySQL sau khi chuyển (ISSUE-017): unit PHP-FPM dùng `PrivateTmp`, che mất `/tmp/mysql.sock` của aaPanel. Đã bỏ; `sync-ini` chép thêm cấu hình socket MySQL.

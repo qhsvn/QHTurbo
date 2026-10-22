@@ -6,6 +6,10 @@ Format follows [Keep a Changelog](https://keepachangelog.com/). Every measuremen
 
 ## [Unreleased]
 
+### Added — aaPanel plugin (2026-10-22)
+- `plugins/aapanel/qhturbo`: aaPanel plugin (zip for App Store import, or copy from the command line). PHP versions tab (install, copy extensions, check, rebuild, remove), Sites tab (switch to QHturbo or back, per site), live task log; English and Vietnamese. It runs the same scripts as the command line; long tasks run detached in the background. Tested against the simulated aaPanel (`tests/aapanel-plugin.py`, 13 checks). DirectAdmin and cPanel plugins are planned.
+- `aapanel.sh versions|sites`: tab-separated lists for the plugin; FPM counts as running only if its process is alive (not just a leftover socket).
+
 ### Added / Fixed — first run on a real aaPanel server (2026-10-22)
 - `aapanel.sh` supports aaPanel with **Apache** (detected automatically, or `--web=nginx|apache`): `enable` points the site's `SetHandler "proxy:unix:...|fcgi://localhost"` at QHturbo, with the same backup, config test and automatic rollback as nginx. New test `tests/aapanel-sim-apache.sh` (14/14).
 - Sites could not reach MySQL after switching (ISSUE-017): the PHP-FPM unit used `PrivateTmp`, hiding aaPanel's `/tmp/mysql.sock`. Removed; `sync-ini` also copies the MySQL socket settings.

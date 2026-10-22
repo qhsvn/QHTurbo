@@ -1,0 +1,9 @@
+{
+  "title": "QHturbo PHP",
+  "name": "qhturbo",
+  "ps": "PHP 7.4-8.5 built from source, beside aaPanel's PHP. Switch one site at a time, with automatic rollback.",
+  "versions": "1.0",
+  "checks": "/www/server/panel/plugin/qhturbo",
+  "author": "qhsvn",
+  "home": "https://github.com/qhsvn/QHTurbo"
+}

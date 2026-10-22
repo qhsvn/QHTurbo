@@ -161,6 +161,17 @@ grep -q 'the site ran on PHP 8.4' <<< "$out" && ok "rollback suggests the site's
 mv "$idx.orig" "$idx"
 cmp -s "$vhost" "$SIM/original.conf" && ok "vhost restored" || bad "vhost not restored"
 
+# The aaPanel plugin backend, as the panel calls it.
+jobs="$SIM/plugin-jobs"; mkdir -p "$jobs"
+if out="$(AAPANEL_ROOT="$SIM" QHT_SRC="$QHT_ROOT" QHT_JOB_DIR="$jobs" QHT_URL="http://127.0.0.1:$PORT/" \
+          timeout 240 python3 -u "$QHT_ROOT/tests/aapanel-plugin.py" "$QHT_ROOT/plugins/aapanel/qhturbo" 2>&1)"; then
+  ok "aaPanel plugin backend ($(grep -c '^  ok' <<< "$out") checks)"
+else
+  bad "aaPanel plugin backend:
+$out"
+fi
+cmp -s "$vhost" "$SIM/original.conf" && ok "vhost identical after the plugin tests" || bad "vhost differs after the plugin tests"
+
 echo
 echo "$pass passed, $fail failed"
 exit $(( fail > 0 ))

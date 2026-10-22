@@ -113,7 +113,7 @@ sudo scripts/aapanel.sh enable  test.example.com --php=8.5   # chuyển 1 site; 
 sudo scripts/aapanel.sh disable test.example.com             # quay về PHP của aaPanel
 ```
 
-Hướng dẫn đầy đủ: [docs/aapanel.vi.md](docs/aapanel.vi.md).
+Hướng dẫn đầy đủ: [docs/aapanel.vi.md](docs/aapanel.vi.md). Muốn dùng giao diện? Cài [plugin aaPanel](plugins/README.vi.md).
 
 ### Máy chủ Linux bất kỳ (hoặc Windows qua WSL2)
 
