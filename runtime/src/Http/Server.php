@@ -293,8 +293,16 @@ final class Server
         if ($this->connections) {
             return; // their fibers call checkDrained() again when they exit
         }
-        $done = $this->onDrained;
-        $this->onDrained = null;
-        Loop::get()->defer($done);
+        // Finish on the next tick, and only if still idle then: the signal
+        // that started draining may have interrupted accept() between
+        // stream_socket_accept() and registering the new connection.
+        Loop::get()->defer(function (): void {
+            if ($this->onDrained === null || $this->inFlight > 0 || $this->connections) {
+                return; // a connection appeared; its fiber re-checks on exit
+            }
+            $done = $this->onDrained;
+            $this->onDrained = null;
+            $done();
+        });
     }
 }

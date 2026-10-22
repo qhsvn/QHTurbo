@@ -11,13 +11,17 @@
 - `docs/aapanel.md`: hướng dẫn cài thử trên aaPanel.
 - README tiếng Anh làm mặc định (`README.md`), bản tiếng Việt ở `README.vi.md`, kèm mục tính năng chính.
 
+### Fixed
+- Race khi reload: SIGTERM đến giữa lúc accept làm mất phản hồi của kết nối mới (ISSUE-007).
+- Worker crash khi `disable_functions` chặn `pcntl_signal` (mặc định của aaPanel); báo lỗi rõ ràng (ISSUE-008).
+
 ### Changed
 - Bỏ các đường dẫn Windows cụ thể (ổ D:) khỏi tài liệu; hướng dẫn dùng `git clone` vào thư mục bất kỳ.
 
 ### Added — hai chế độ chạy (2026-10-22)
 - **QHturbo Compatible**: build profile `full` (`QHT_PROFILE=full`) gồm PHP-FPM và các extension thường dùng (openssl, curl, intl, gd, mysqli, pdo_mysql, zip, sodium, bcmath, soap, pcntl...). `scripts/install.sh` cài vào `/opt/qhturbo/<nhánh>` song song với PHP có sẵn, kèm cấu hình OPcache an toàn, pool FPM và systemd unit. `scripts/package.sh` đóng gói `.tar.gz` (đã strip, 15 MB) kèm danh sách thư viện phụ thuộc.
 - PHP 7.4/8.0 build `full` dùng OpenSSL 1.1.1w riêng (`scripts/deps-openssl11.sh`), không đụng OpenSSL 3 của hệ thống.
-- **QHturbo Performance** (`runtime/`, PHP ≥ 8.1): event loop, async I/O bằng Fiber (`async/await/all/delay/timeout`, socket, HTTP client), HTTP/1.1 server không chặn, supervisor nhiều worker (tái tạo theo số request/RAM, reload SIGHUP lần lượt từng worker, dừng êm), `StateGuard` (reset hook, dọn global/ini/output buffer, phát hiện static/RAM tăng dần, chế độ `--strict-state`, `--superglobals` cho code cũ). 15 test.
+- **QHturbo Performance** (`runtime/`, PHP ≥ 8.1): event loop, async I/O bằng Fiber (`async/await/all/delay/timeout`, socket, HTTP client), HTTP/1.1 server không chặn, supervisor nhiều worker (tái tạo theo số request/RAM, reload SIGHUP lần lượt từng worker, dừng êm), `StateGuard` (reset hook, dọn global/ini/output buffer, phát hiện static/RAM tăng dần, chế độ `--strict-state`, `--superglobals` cho code cũ). 16 test.
 - `scripts/qht-doctor.php` (PHP 7.4+): kiểm tra cấu hình và quét mã nguồn tìm rủi ro khi chuyển sang worker. `scripts/fpm-tune.py`: tính `pm.*` từ RAM/RSS.
 - Benchmark web hai chế độ (`benchmarks/web/run.sh`) và báo cáo `results/web/`.
 - Tài liệu: `docs/modes/compatible.md`, `docs/modes/performance.md` (quy tắc trạng thái R1–R9), `docs/proposals.md`.

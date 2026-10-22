@@ -45,8 +45,14 @@ final class Supervisor
             }
             return (new Worker($this->appFile, $this->options))->run($listener);
         }
-        if (!function_exists('pcntl_fork')) {
-            throw new \RuntimeException('--workers needs the pcntl extension; use --workers=0');
+        $missing = self::missingFunctions(['pcntl_fork', 'pcntl_wait', 'pcntl_waitpid', 'pcntl_signal',
+            'pcntl_async_signals', 'pcntl_wifexited', 'pcntl_wexitstatus', 'posix_kill']);
+        if ($missing) {
+            throw new \RuntimeException('--workers needs ' . implode(', ', $missing) . '. They are '
+                . (extension_loaded('pcntl') ? 'blocked by disable_functions in php.ini (aaPanel blocks pcntl_* by default); '
+                    . 'run workers with the Performance ini (PHP_INI_SCAN_DIR=<prefix>/etc/conf.d:<prefix>/etc/performance.d) '
+                    : 'missing: build PHP with --enable-pcntl and posix ')
+                . 'or use --workers=0');
         }
 
         pcntl_async_signals(true);
@@ -151,6 +157,18 @@ final class Supervisor
             pcntl_waitpid($pid, $status);
             unset($this->workers[$pid]);
         }
+    }
+
+    /**
+     * Functions from $names that cannot be called: extension missing or
+     * listed in disable_functions (PHP 8 removes disabled functions).
+     *
+     * @param list<string> $names
+     * @return list<string>
+     */
+    public static function missingFunctions(array $names): array
+    {
+        return array_values(array_filter($names, static fn (string $f): bool => !function_exists($f)));
     }
 
     private function log(string $message): void

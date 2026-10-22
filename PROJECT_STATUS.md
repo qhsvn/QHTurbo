@@ -20,10 +20,11 @@ Máy build/đo: VM đám mây (Intel Xeon 2.8 GHz, 4 vCPU, 15 GiB, Ubuntu 24.04.
 | QHT-JIT-001 PGO (v1, v2) | **NO-GO** | `results/2026-10-22-php8.5-pgo-v1`, `-v2` | v2: interp +0.3%, jit −3.2%; PHPT vẫn 0 fail |
 | QHT-JIT-001a LTO | **NO-GO** | ISSUE-001 | Xung đột global register variables |
 | QHT-WEB-001 **QHturbo Compatible**: build `full` + FPM, install/package, cấu hình | DONE (8.5, 7.4) | `docs/modes/compatible.md` | App cũ chạy giống hệt trên 7.4 và 8.5 qua nginx → FPM; Composer + Laravel 13 (test pass) trên 8.5; Composer + Guzzle HTTPS trên 7.4 |
-| QHT-WEB-002 **QHturbo Performance**: runtime worker/event loop/async/quy tắc trạng thái | DONE (bản đầu) | `runtime/`, 15 test; CI xanh trên 8.1 → 8.5 (3 lần liên tiếp) | 7–8× FPM ở bài CPU; 2,5× ở bài I/O với một nửa RAM (`results/web/`) |
+| QHT-WEB-002 **QHturbo Performance**: runtime worker/event loop/async/quy tắc trạng thái | DONE (bản đầu) | `runtime/`, 16 test; CI xanh trên 8.1 → 8.5 (3 lần liên tiếp) | 7–8× FPM ở bài CPU; 2,5× ở bài I/O với một nửa RAM (`results/web/`) |
 | QHT-WEB-003 `qht-doctor`, `fpm-tune` | DONE | `scripts/` | doctor chạy được từ 7.4 trở lên |
 | QHT-WEB-004 Driver MySQL/Redis async, pool kết nối | TODO | `docs/proposals.md` B4–B5 | Cần để dùng `--concurrency>1` với ứng dụng có DB |
-| QHT-WEB-005 Adapter Laravel/Symfony, plugin aaPanel, gói .deb | TODO | B6–B8 | |
+| QHT-WEB-006 Tích hợp aaPanel (`scripts/aapanel.sh`, `install-ext.sh`) | DONE (mô phỏng) | `tests/aapanel-sim.sh` 12/12, `docs/aapanel.md` | Chưa chạy trên aaPanel thật |
+| QHT-WEB-005 Adapter Laravel/Symfony, plugin giao diện aaPanel, gói .deb | TODO | B6–B8 | |
 | QHT-P02 Bản vá Zend Engine | TODO | — | Cần `perf` trên máy riêng |
 | QHT-P03 Bộ nhớ | TODO | — | |
 | QHT-P06 Phát hành | TODO | — | |
@@ -52,7 +53,8 @@ Không có test fail nào liên quan đến QHturbo (chưa có patch mã nguồn
 - ISSUE-004: chế độ một tiến trình tự tắt sau `--max-requests`.
 - ISSUE-005: rò rỉ RAM do timer đã huỷ (129 → 315 MiB trong 30 s, nay ổn định 54 MiB).
 - ISSUE-006: race khi worker dừng làm mất phản hồi của kết nối vừa accept (CI phát hiện trên 8.3–8.5).
-- ISSUE-007 (đang theo dõi): một lần fail đơn lẻ trên CI 8.5, chưa tái hiện được.
+- ISSUE-007: race khi reload (tín hiệu đến giữa lúc accept), CI phát hiện nhờ annotation.
+- ISSUE-008: worker crash khi aaPanel chặn `pcntl_signal`.
 
 ## Vướng mắc
 

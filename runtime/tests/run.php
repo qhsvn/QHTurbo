@@ -130,10 +130,11 @@ final class TestServer
     public string $log = '';
     private string $logFile;
 
-    public function __construct(string $app, array $args, public int $port)
+    /** @param list<string> $phpArgs e.g. ['-d', 'disable_functions=...'] */
+    public function __construct(string $app, array $args, public int $port, array $phpArgs = [])
     {
         $this->logFile = tempnam(sys_get_temp_dir(), 'qht');
-        $cmd = array_merge([PHP_BINARY, dirname(__DIR__) . '/bin/qhturbo-serve', $app, "--port=$port"], $args);
+        $cmd = array_merge([PHP_BINARY], $phpArgs, [dirname(__DIR__) . '/bin/qhturbo-serve', $app, "--port=$port"], $args);
         $this->proc = proc_open($cmd, [0 => ['file', '/dev/null', 'r'], 1 => ['file', $this->logFile, 'w'], 2 => ['file', $this->logFile, 'w']], $pipes);
         for ($i = 0; $i < 100; $i++) {
             $s = @stream_socket_client("tcp://127.0.0.1:$port", $e, $m, 0.1);
@@ -311,6 +312,22 @@ test('server: SIGHUP reload replaces workers without failed requests', function 
     } finally {
         $srv->stop();
     }
+});
+
+test('server: pcntl blocked by disable_functions (aaPanel default)', function () use ($fixtures, &$port): void {
+    $blocked = ['-d', 'disable_functions=pcntl_fork,pcntl_signal,pcntl_async_signals'];
+    $srv = new TestServer("$fixtures/app.php", [], ++$port, $blocked);
+    try {
+        [$s, , $b] = get($srv->port, '/hello');
+        check($s === 200 && $b === 'hello world', "single process: $s $b");
+    } finally {
+        $log = $srv->stop();
+    }
+    check(str_contains($log, 'pcntl signals unavailable'), 'missing warning');
+    $out = shell_exec(escapeshellarg(PHP_BINARY) . ' ' . implode(' ', array_map('escapeshellarg', $blocked)) . ' '
+        . escapeshellarg(dirname(__DIR__) . '/bin/qhturbo-serve') . ' ' . escapeshellarg("$fixtures/app.php")
+        . ' --port=' . ++$port . ' --workers=2 2>&1');
+    check(str_contains((string) $out, 'blocked by disable_functions'), "unclear error: $out");
 });
 
 test('state: leaked globals are removed; strict mode reports them', function () use ($fixtures, &$port): void {

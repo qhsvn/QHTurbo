@@ -13,7 +13,7 @@
 | Phiên bản PHP | **8.1 trở lên** (cần Fiber). PHP 7.4/8.0 dùng chế độ Compatible |
 | Mô hình chạy | nginx (reverse proxy) → `qhturbo-serve` (master + N worker) |
 | Mã nguồn | `runtime/` (gói Composer `qhturbo/runtime`, không phụ thuộc gì, cũng chạy được không cần Composer) |
-| Test | `php runtime/tests/run.php`: 15 test (event loop, async, HTTP, tái tạo worker, reload, quy tắc trạng thái) |
+| Test | `php runtime/tests/run.php`: 16 test (event loop, async, HTTP, tái tạo worker, reload, quy tắc trạng thái) |
 
 ## 1. Kết quả đo
 

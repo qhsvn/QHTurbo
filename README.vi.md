@@ -168,7 +168,7 @@ config/build.env   cờ configure (profile minimal / full)
 config/modes/      cấu hình mẫu cho Compatible (FPM) và Performance (worker)
 config/ini/        profile OPcache / JIT / preload
 patches/<nhánh>/   chuỗi bản vá mã nguồn (hiện trống: chưa có bản vá engine)
-runtime/           QHturbo Performance: event loop, async, HTTP server, worker, bảo vệ trạng thái (15 test)
+runtime/           QHturbo Performance: event loop, async, HTTP server, worker, bảo vệ trạng thái (16 test)
 scripts/           bootstrap, build, install, package, aapanel, install-ext, run-tests, bench.py, qht-doctor, fpm-tune
 benchmarks/        bài đo CPU bằng PHP/Python/JS/Go, benchmark web, tập huấn luyện PGO
 tests/             kiểm tra output giữa các ngôn ngữ, mô phỏng aaPanel end-to-end

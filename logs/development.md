@@ -41,5 +41,5 @@ Mỗi thay đổi một mục, theo mẫu trong `docs/KE-HOACH-GOC.md` §6.2. Gi
 - **Yêu cầu của người dùng:** (1) Compatible: PHP chuẩn, PHP-FPM, Composer, ứng dụng cũ, thay đổi tối thiểu; (2) Performance: worker chạy lâu dài, event loop, async I/O, chấp nhận quy tắc trạng thái; (3) đề xuất cải tiến.
 - **Thiết kế:** cùng một binary (profile `full`); hai chế độ khác nhau ở cách chạy và cấu hình. Performance là runtime PHP thuần (`runtime/`), không cần extension ngoài, nên dễ kiểm soát. Yêu cầu PHP 8.1+ vì dùng Fiber.
 - **Kiểm chứng Compatible:** build 8.5 `full` (51 module), `install.sh` vào `/opt/qhturbo/8.5`, `php-fpm -t` OK. nginx → FPM chạy app cũ (session, cookie, header, upload, SQLite, intl, gd, openssl, sodium). Composer 2.8 trên PHP QHturbo cài Laravel 13.38 (hơn 100 package). Laravel qua FPM trả 200, `artisan test` 2/2.
-- **Kiểm chứng Performance:** 15 test (PHP 8.5.12 và 8.3.6). Benchmark web: 7–8× ở bài CPU, 2,5× ở bài I/O với một nửa RAM. Phát hiện và sửa 2 lỗi nhờ benchmark (ISSUE-004, ISSUE-005).
+- **Kiểm chứng Performance:** 16 test (PHP 8.5.12 và 8.3.6). Benchmark web: 7–8× ở bài CPU, 2,5× ở bài I/O với một nửa RAM. Phát hiện và sửa 2 lỗi nhờ benchmark (ISSUE-004, ISSUE-005).
 - **Quyết định:** KEEP. Bước tiếp theo theo `docs/proposals.md`: driver MySQL/Redis async, adapter Laravel/Symfony, plugin aaPanel.

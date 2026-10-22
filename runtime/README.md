@@ -4,7 +4,7 @@ Worker chạy lâu dài, event loop, async I/O bằng Fiber và quy tắc quản
 
 ```bash
 php bin/qhturbo-serve examples/hello.php --port=8080 --workers=4
-php tests/run.php            # 15 test: loop, async, HTTP, tái tạo worker, reload, quy tắc trạng thái
+php tests/run.php            # 16 test: loop, async, HTTP, tái tạo worker, reload, quy tắc trạng thái
 ```
 
 | Thành phần | File |

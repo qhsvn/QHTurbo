@@ -160,7 +160,7 @@ config/build.env   configure flags (minimal / full profiles)
 config/modes/      Compatible (FPM) and Performance (worker) configuration templates
 config/ini/        OPcache / JIT / preload profiles
 patches/<branch>/  source patch series (empty: no engine patches yet)
-runtime/           QHturbo Performance: event loop, async, HTTP server, workers, state guard (+15 tests)
+runtime/           QHturbo Performance: event loop, async, HTTP server, workers, state guard (16 tests)
 scripts/           bootstrap, build, install, package, aapanel, install-ext, run-tests, bench.py, qht-doctor, fpm-tune
 benchmarks/        CPU workloads in PHP/Python/JS/Go, web benchmark, PGO training set
 tests/             cross-language output check, aaPanel end-to-end simulation

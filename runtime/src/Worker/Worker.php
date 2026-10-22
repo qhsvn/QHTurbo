@@ -47,10 +47,12 @@ final class Worker
             $server->drain(static fn () => $loop->stop());
         };
 
-        if (function_exists('pcntl_async_signals')) {
+        if (Supervisor::missingFunctions(['pcntl_async_signals', 'pcntl_signal']) === []) {
             pcntl_async_signals(true);
             pcntl_signal(SIGTERM, static fn () => $stop('SIGTERM'));
             pcntl_signal(SIGINT, static fn () => $stop('SIGINT'));
+        } else {
+            $log('pcntl signals unavailable (extension missing or disable_functions): SIGTERM stops immediately, without draining');
         }
 
         // Recycling limits are checked between requests.

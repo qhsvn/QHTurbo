@@ -55,9 +55,18 @@
 - **Nguyên nhân:** (1) nếu worker bắt đầu dừng giữa lúc `accept()` và lần đọc đầu tiên, vòng lặp phục vụ thoát ngay; (2) khi dừng, worker đóng **mọi** kết nối đang chờ, kể cả kết nối mới chưa gửi request.
 - **Sửa:** kết nối mới luôn được phục vụ request đầu tiên; khi dừng chỉ đóng kết nối keep-alive **đang rảnh**. Test chạy lặp 16 lần (có và không có JIT) đều pass.
 
-## ISSUE-007 — Một lần fail đơn lẻ của test runtime trên CI PHP 8.5 (đang theo dõi)
+## ISSUE-007 — Request lỗi chập chờn khi reload SIGHUP (đã sửa)
 
 - **Ngày:** 2026-10-22
 - **Hiện tượng:** run CI ở commit `0666733` (sau khi sửa ISSUE-006): job `workloads (8.5)`, bước runtime tests fail một lần. Không đọc được log vì storage log của GitHub bị chặn từ máy build.
 - **Đã làm:** test runner giờ in lỗi thành annotation `::error` (đọc được qua API). Sau đó 3 lần chạy CI liên tiếp (1 lần mới + 2 lần re-run) đều xanh trên 7.4 → 8.5, và 16 lần chạy ở máy build (có/không JIT) cũng pass.
-- **Trạng thái:** mở. Nếu tái diễn, annotation sẽ cho biết test nào. Nghi vấn: ngưỡng thời gian trong test concurrency/reload trên runner 2 vCPU.
+- **Tái diễn** ở commit `bd6179a` trên PHP 8.1; annotation chỉ ra đúng test: `SIGHUP reload ... 1 failed requests during reload`.
+- **Nguyên nhân:** tín hiệu SIGTERM (async) có thể chạy **giữa** `stream_socket_accept()` và lúc kết nối được ghi vào danh sách. Khi đó worker thấy "không còn kết nối", lên lịch dừng, và kết nối vừa nhận bị đóng mà không có phản hồi. Tải thường rất khó gặp (25 lần chạy dưới tải CPU ở máy build đều không tái hiện được).
+- **Sửa:** bước dừng cuối cùng được hoãn sang tick sau và **kiểm tra lại** không còn kết nối hay request nào; nếu có, việc dừng chờ kết nối đó xong.
+- **Trạng thái:** đã sửa; theo dõi tiếp qua CI.
+
+## ISSUE-008 — Worker crash khi `disable_functions` chặn `pcntl_signal` (đã sửa)
+
+- **Ngày:** 2026-10-22
+- **Phát hiện:** khi thử tích hợp aaPanel. aaPanel chặn `pcntl_*` trong php.ini; chạy `qhturbo-serve` với php.ini đó thì chế độ một tiến trình crash (`Call to undefined function pcntl_signal()`), còn chế độ nhiều worker báo sai là "thiếu extension pcntl".
+- **Sửa:** kiểm tra từng hàm cần dùng. Chế độ một tiến trình vẫn chạy (kèm cảnh báo: SIGTERM dừng ngay, không chờ request xong). Chế độ nhiều worker báo rõ hàm nào bị `disable_functions` chặn và cách dùng `performance.d`. Có test mới; `scripts/aapanel.sh` tự tạo `performance.d/05-from-aapanel.ini` bỏ `pcntl_*` cho worker.
