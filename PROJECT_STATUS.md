@@ -15,7 +15,7 @@ Máy build/đo: VM đám mây (Intel Xeon 2.8 GHz, 4 vCPU, 15 GiB, Ubuntu 24.04.
 | QHT-P01-003 Build baseline 8.5.12 và 7.4.33 | DONE | `BUILD-INFO.txt` (sha256) | 7.4 cần `--enable-json` (đã sửa) |
 | QHT-P01-004 PHPT baseline | DONE | `results/tests/` | 8.5: 13568 pass / 0 fail. 7.4: 8997 pass / 46 fail, tất cả do môi trường (xem dưới) |
 | QHT-P01-005 Benchmark baseline + A/A | DONE | `results/2026-10-22-php8.5-pgo-v*/` | Nhiễu A/A khoảng ±8% mỗi workload, cỡ 1% ở geomean |
-| QHT-P01-006 CI | DONE (chưa chạy lần đầu trên GitHub) | `.github/workflows/ci.yml` | Lint 7.4 → 8.5, so output 4 ngôn ngữ, build smoke 7.4 + 8.5 |
+| QHT-P01-006 CI | DONE | GitHub Actions run 39749752272: xanh | Lint + so output 4 ngôn ngữ trên 7.4 → 8.5; build + PHPT Zend + benchmark smoke cho 7.4 và 8.5 trên máy GitHub |
 | QHT-P01-007 So sánh 7.4 ↔ 8.5 và với Python/Node/Go | DONE | `results/2026-10-22-cross-*` | Xem README |
 | QHT-JIT-001 PGO (v1, v2) | **NO-GO** | `results/2026-10-22-php8.5-pgo-v1`, `-v2` | v2: interp +0.3%, jit −3.2%; PHPT vẫn 0 fail |
 | QHT-JIT-001a LTO | **NO-GO** | ISSUE-001 | Xung đột global register variables |
@@ -38,7 +38,7 @@ Không có test fail nào liên quan đến QHturbo (chưa có patch mã nguồn
 ## Bước kế tiếp
 
 1. **Trên máy người dùng:** `git clone` về `D:\usertcd\QHTurbo`, chạy trong WSL theo README (`QHT_LAB=~/QHTurbo-lab`) để có baseline của máy thật.
-2. Chạy CI lần đầu trên GitHub (push sẽ kích hoạt) và sửa nếu job nào lỗi.
+2. Tạo tag baseline trên máy người dùng (máy build không được phép push tag): `git tag -a qhturbo-baseline-20261022 094b04d -m "baseline" && git push origin qhturbo-baseline-20261022`.
 3. Build + PHPT + benchmark cho 8.0 → 8.4 (`QHT_PHP=8.x`).
 4. Phase 5: thêm biến thể FPM + extension aaPanel, benchmark HTTP bằng ứng dụng thật. Đây là nơi người dùng thấy lợi ích rõ nhất (OPcache, preload, `pm.*`, Redis/MySQL).
 5. Phase 2: trên máy riêng có `perf`, profile `objects`/`nbody`/`spectral_norm` để chọn giả thuyết `QHT-ENG-001`.
