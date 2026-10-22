@@ -216,6 +216,9 @@ do_install() {
   QHT_PROFILE=full "$QHT_ROOT/scripts/build.sh" baseline
   "$QHT_ROOT/scripts/install.sh" --user=www --group=www
   sync_aapanel_ini
+  # php-fpm -t opens the error log and checks the pid directory: create them
+  # first (the systemd unit only creates them when the service starts).
+  mkdir -p /run/qhturbo /var/log/qhturbo
   "$PREFIX/sbin/php-fpm" -t
   start_service
   write_include

@@ -106,6 +106,12 @@ fi
   cat "$BUILD_DIR/$variant$PROFILE_TAG/BUILD-INFO.txt" 2>/dev/null
 } > "$root/share/qhturbo/BUILD-INFO.txt"
 
+# Directories php-fpm needs for its pid file, socket and error log (the
+# systemd unit creates them too, but "php-fpm -t" needs them first).
+if [[ -z "$destdir" && $EUID -eq 0 ]]; then
+  mkdir -p /run/qhturbo /var/log/qhturbo
+fi
+
 log "Installed PHP $QHT_PHP into $root"
 cat >&2 <<MSG
 
