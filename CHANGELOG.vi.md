@@ -6,6 +6,12 @@
 
 ## [Unreleased]
 
+### Added / Fixed — lần chạy đầu trên server aaPanel thật (2026-10-22)
+- `aapanel.sh` hỗ trợ aaPanel dùng **Apache** (tự nhận biết, hoặc `--web=nginx|apache`): `enable` trỏ dòng `SetHandler "proxy:unix:...|fcgi://localhost"` của site sang QHturbo, vẫn có backup, kiểm tra cấu hình và tự rollback như với nginx. Test mới `tests/aapanel-sim-apache.sh` (14/14).
+- `aapanel.sh install` dừng **trước** khi build nếu không tìm thấy web server được hỗ trợ (trước đây chỉ cảnh báo, build 10–40 phút rồi mới lỗi khi ghi file include của nginx).
+- `aapanel.sh install` lỗi trên server mới với `failed to open error_log (/var/log/qhturbo/...)`: bước kiểm tra cấu hình PHP-FPM chạy trước khi có thư mục log. `install.sh` giờ cũng tạo `/run/qhturbo` và `/var/log/qhturbo`.
+- Trang web (`website/`, GitHub Pages) với hướng dẫn cài đặt và ví dụ; mọi tài liệu có bản tiếng Anh và tiếng Việt.
+
 ### Fixed — rà soát lỗi trước khi chạy thử (2026-10-22)
 Rà soát toàn bộ code (43 phát hiện), sửa các lỗi thật và thêm test hồi quy cho từng lỗi quan trọng (ISSUE-013 đến ISSUE-016).
 - **aaPanel:** `aapanel.sh sync-ini` dừng giữa chừng khi php.ini thiếu một khoá (ví dụ `session.save_path` bị comment), do `grep` không khớp dưới `set -o pipefail` (ISSUE-013). `performance.d` giờ chỉ mở lại đúng các hàm `pcntl_*`/`posix_kill` mà worker cần, `pcntl_exec` vẫn bị chặn. Kiểm tra rollback đi theo chuyển hướng HTTP→HTTPS.

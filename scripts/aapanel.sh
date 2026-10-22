@@ -11,15 +11,17 @@
 #   sudo scripts/aapanel.sh sync-ini [--php=8.5]        re-copy limits/disable_functions from aaPanel php.ini
 #   sudo scripts/aapanel.sh uninstall [--php=8.5]       disable all sites, stop + remove the service
 #
-# <site> is the vhost file name in /www/server/panel/vhost/nginx/ without
-# ".conf" (usually the domain, e.g. example.com).
+# Works with aaPanel's nginx or Apache (detected; force with --web=nginx|apache).
+# <site> is the vhost file name in /www/server/panel/vhost/{nginx,apache}/
+# without ".conf" (usually the domain, e.g. example.com).
 set -euo pipefail
 
 ROOT="${AAPANEL_ROOT:-}"                 # test hook: a fake filesystem root
 PANEL="$ROOT/www/server/panel"
-VHOSTS="$PANEL/vhost/nginx"
 NGINX_CONF="$ROOT/www/server/nginx/conf"
 NGINX_BIN="${NGINX_BIN:-$ROOT/www/server/nginx/sbin/nginx}"
+APACHE_BIN="${APACHE_BIN:-$ROOT/www/server/apache/bin/httpd}"
+WEB=""                                   # nginx | apache (detected, or --web=)
 QHT_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 export QHT_LAB="${QHT_LAB:-/opt/qhturbo-lab}"
 PHPV=8.5
@@ -37,6 +39,7 @@ for a in "$@"; do
   case "$a" in
     --php=*) PHPV="${a#*=}" ;;
     --url=*) URL="${a#*=}" ;;
+    --web=*) WEB="${a#*=}" ;;
     -*) die "unknown option $a" ;;
     *) args+=("$a") ;;
   esac
@@ -48,16 +51,79 @@ SOCK="/run/qhturbo/php$TAG-fpm.sock"
 SERVICE="qhturbo-php$TAG-fpm"
 INCLUDE="enable-php-qhturbo$TAG.conf"
 
+# aaPanel runs either nginx or Apache as its web server.
+if [[ -z "$WEB" ]]; then
+  if [[ -x "$NGINX_BIN" ]]; then WEB=nginx; elif [[ -x "$APACHE_BIN" ]]; then WEB=apache; fi
+fi
+case "$WEB" in
+  nginx|apache|"") ;;
+  *) die "unknown --web=$WEB (nginx or apache)" ;;
+esac
+VHOSTS="$PANEL/vhost/${WEB:-nginx}"
+APACHE_ORIG_DEFAULT="proxy:unix:/tmp/php-cgi-$TAG.sock|fcgi://"
+
 need_root() { [[ $EUID -eq 0 ]] || die "run as root (sudo)"; }
-nginx_test() { "$NGINX_BIN" -t > /dev/null 2>&1; }
+need_web() {
+  [[ -n "$WEB" ]] && return 0
+  if [[ -d "$ROOT/usr/local/lsws" ]]; then
+    die "aaPanel uses OpenLiteSpeed here: not supported yet (nginx and Apache are)"
+  fi
+  die "no aaPanel web server found ($NGINX_BIN or $APACHE_BIN); install nginx or Apache in aaPanel first"
+}
+web_test() {
+  if [[ "$WEB" == apache ]]; then "$APACHE_BIN" -t > /dev/null 2>&1; else "$NGINX_BIN" -t > /dev/null 2>&1; fi
+}
+web_test_output() {
+  if [[ "$WEB" == apache ]]; then "$APACHE_BIN" -t 2>&1 | tail -5; else "$NGINX_BIN" -t 2>&1 | tail -5; fi
+}
 # reload is asynchronous: give the new workers a moment before testing.
-nginx_reload() { "$NGINX_BIN" -s reload 2> /dev/null; sleep 1; }
+web_reload() {
+  if [[ "$WEB" == apache ]]; then "$APACHE_BIN" -k graceful 2> /dev/null; else "$NGINX_BIN" -s reload 2> /dev/null; fi
+  sleep 1
+}
+
+# How a vhost hands PHP to PHP-FPM:
+#   nginx:  include enable-php-84.conf;   (aaPanel's per-version include)
+#   apache: SetHandler "proxy:unix:/tmp/php-cgi-84.sock|fcgi://localhost"
+uses_qhturbo() { grep -qE 'enable-php-qhturbo[0-9]+\.conf|proxy:unix:/run/qhturbo/' "$1"; }
+qhturbo_label() { grep -oE 'enable-php-qhturbo[0-9]+|/run/qhturbo/php[0-9]+-fpm\.sock' "$1" | head -1; }
+current_php() {
+  if [[ "$WEB" == apache ]]; then
+    grep -oE 'proxy:unix:[^|"]+\|fcgi://' "$1" | head -1 || true
+  else
+    grep -oE 'include[[:space:]]+enable-php-[0-9]+\.conf;' "$1" | head -1 || true
+  fi
+}
+switch_to_qhturbo() {
+  if [[ "$WEB" == apache ]]; then
+    sed -i -E "s#proxy:unix:[^|\"]+\|fcgi://#proxy:unix:$SOCK|fcgi://#g" "$1"
+  else
+    sed -i -E "s#include[[:space:]]+enable-php-[0-9]+\.conf;#include $INCLUDE;#" "$1"
+  fi
+}
+switch_back() { # vhost original
+  if [[ "$WEB" == apache ]]; then
+    sed -i -E "s#proxy:unix:/run/qhturbo/[^|\"]+\|fcgi://#$2#g" "$1"
+  else
+    sed -i -E "s#include[[:space:]]+enable-php-qhturbo[0-9]+\.conf;#$2#" "$1"
+  fi
+}
 
 # ------------------------------------------------------------------ check --
 do_check() {
   local ok=1
   [[ -d "$PANEL" ]] && log "aaPanel found: $PANEL" || { warn "aaPanel not found at $PANEL"; ok=0; }
-  [[ -x "$NGINX_BIN" ]] && log "nginx: $("$NGINX_BIN" -v 2>&1)" || { warn "aaPanel nginx not found at $NGINX_BIN (Apache/OpenLiteSpeed are not supported by this script)"; ok=0; }
+  case "$WEB" in
+    nginx) log "web server: $("$NGINX_BIN" -v 2>&1)" ;;
+    apache)
+      log "web server: $("$APACHE_BIN" -v 2>&1 | head -1)"
+      "$APACHE_BIN" -M 2>/dev/null | grep -q proxy_fcgi_module \
+        || warn "Apache module proxy_fcgi is not loaded; aaPanel normally loads it (PHP-FPM sites need it)"
+      ;;
+    *) if [[ -d "$ROOT/usr/local/lsws" ]]; then warn "OpenLiteSpeed is not supported yet (nginx and Apache are)"
+       else warn "no aaPanel web server found ($NGINX_BIN or $APACHE_BIN)"; fi
+       ok=0 ;;
+  esac
   local os; os="$(. /etc/os-release && echo "$PRETTY_NAME")"
   log "OS: $os, $(nproc) CPU, $(free -m | awk '/Mem:/{print $2}') MiB RAM, $(df -Pm / | awk 'NR==2{print $4}') MiB free on /"
   if [[ $(free -m | awk '/Mem:/{print $2+0}') -lt 1800 ]] && [[ $(free -m | awk '/Swap:/{print $2+0}') -lt 1024 ]]; then
@@ -74,7 +140,7 @@ do_check() {
     local f
     for f in "$VHOSTS"/*.conf; do
       [[ -e "$f" ]] || continue
-      printf '    %-40s %s\n' "$(basename "$f" .conf)" "$(grep -oE 'enable-php-[a-z0-9]+\.conf' "$f" | head -1 || echo '(no PHP include)')" >&2
+      printf '    %-40s %s\n' "$(basename "$f" .conf)" "$(grep -oE 'enable-php-[a-z0-9]+\.conf|php-cgi-[0-9]+\.sock|/run/qhturbo/php[0-9]+-fpm\.sock' "$f" | head -1 || echo '(no PHP)')" >&2
     done
   fi
   if [[ -x "$PREFIX/sbin/php-fpm" ]]; then
@@ -203,6 +269,7 @@ start_service() {
 do_install() {
   need_root
   do_check || warn "continuing despite the warnings above"
+  need_web  # before the 10-40 minute build, not after
   [[ "${SKIP_DEPS:-0}" == 1 ]] || install_deps
   local mem_mb jobs
   mem_mb="$(free -m | awk '/Mem:/{print $2}')"
@@ -221,8 +288,10 @@ do_install() {
   mkdir -p /run/qhturbo /var/log/qhturbo
   "$PREFIX/sbin/php-fpm" -t
   start_service
-  write_include
-  nginx_test || die "nginx -t failed after adding $INCLUDE (no site uses it yet); check $NGINX_CONF/$INCLUDE"
+  if [[ "$WEB" == nginx ]]; then
+    write_include
+    web_test || die "nginx -t failed after adding $INCLUDE (no site uses it yet); check $NGINX_CONF/$INCLUDE"
+  fi
   "$PREFIX/bin/php" "$PREFIX/share/qhturbo/qht-doctor.php" || true
   cat >&2 <<EOF
 
@@ -232,14 +301,14 @@ EOF
 }
 
 # ------------------------------------------------------------ enable/disable --
-http_code() { # site -> HTTP status of the site's home page through the local nginx
+http_code() { # site -> HTTP status of the site's home page through the local web server
   local site="$1" code redirect
   if [[ -n "$URL" ]]; then
     code="$(curl -sk -o /dev/null -w '%{http_code}' --max-time 15 -H "Host: $site" "$URL")" || true
     echo "${code:-000}"; return
   fi
   read -r code redirect < <(curl -s -o /dev/null -w '%{http_code} %{redirect_url}\n' --max-time 15 -H "Host: $site" http://127.0.0.1/ || true) || true
-  # HTTP -> HTTPS redirect: nginx answers before PHP runs, so test HTTPS
+  # HTTP -> HTTPS redirect: the web server answers before PHP runs, so test HTTPS
   # (certificate not verified: we only want the status code).
   if [[ "$code" =~ ^30[1278]$ && "$redirect" == https://* ]]; then
     code="$(curl -sk -o /dev/null -w '%{http_code}' --max-time 15 --resolve "$site:443:127.0.0.1" "https://$site/")" || true
@@ -249,51 +318,64 @@ http_code() { # site -> HTTP status of the site's home page through the local ng
 
 do_enable() {
   need_root
+  need_web
   local site="${args[0]:-}" vhost
   [[ -n "$site" ]] || die "usage: $0 enable <site> [--php=$PHPV]"
   vhost="$VHOSTS/$site.conf"
   [[ -f "$vhost" ]] || die "vhost not found: $vhost (run '$0 check' to list sites)"
   [[ -S "$SOCK" ]] || die "QHturbo PHP $PHPV is not running ($SOCK missing); run '$0 install --php=$PHPV' first"
-  [[ -f "$NGINX_CONF/$INCLUDE" ]] || write_include
-  if grep -q "enable-php-qhturbo" "$vhost"; then
-    log "$site already uses QHturbo ($(grep -oE 'enable-php-qhturbo[0-9]+' "$vhost" | head -1))"; return 0
+  [[ "$WEB" == apache || -f "$NGINX_CONF/$INCLUDE" ]] || write_include
+  if uses_qhturbo "$vhost"; then
+    log "$site already uses QHturbo ($(qhturbo_label "$vhost"))"; return 0
   fi
   local current
-  current="$(grep -oE 'include[[:space:]]+enable-php-[0-9]+\.conf;' "$vhost" | head -1 || true)"
-  [[ -n "$current" ]] || die "$site has no 'include enable-php-XX.conf;' line (static site or custom config); edit it by hand"
+  current="$(current_php "$vhost")"
+  if [[ -z "$current" ]]; then
+    warn "lines mentioning php in $vhost:"
+    grep -n -i 'php' "$vhost" | head -10 >&2 || true
+    if [[ "$WEB" == apache ]]; then
+      die "$site has no 'SetHandler \"proxy:unix:...|fcgi://localhost\"' line (static site, or PHP not set in aaPanel); edit it by hand"
+    fi
+    die "$site has no 'include enable-php-XX.conf;' line (static site or custom config); edit it by hand"
+  fi
 
   local before; before="$(http_code "$site")"
   cp -p "$vhost" "$vhost.qhturbo-bak"
   echo "$current" > "$vhost.qhturbo-orig"
-  sed -i -E "s#include[[:space:]]+enable-php-[0-9]+\.conf;#include $INCLUDE;#" "$vhost"
-  if ! nginx_test; then
+  switch_to_qhturbo "$vhost"
+  if ! web_test; then
+    local out; out="$(web_test_output)"
     cp -p "$vhost.qhturbo-bak" "$vhost"; rm -f "$vhost.qhturbo-orig"
-    die "nginx -t failed; $site restored to aaPanel PHP"
+    die "$WEB config test failed; $site restored to aaPanel PHP:
+$out"
   fi
-  nginx_reload
+  web_reload
   local after; after="$(http_code "$site")"
   if [[ "$after" =~ ^5 || "$after" == 000 ]] && [[ ! "$before" =~ ^5 ]]; then
-    cp -p "$vhost.qhturbo-bak" "$vhost"; rm -f "$vhost.qhturbo-orig"; nginx_reload
+    cp -p "$vhost.qhturbo-bak" "$vhost"; rm -f "$vhost.qhturbo-orig"; web_reload
     die "$site answered HTTP $after with QHturbo (was $before); rolled back. Check /var/log/qhturbo/ and the site's error log"
   fi
-  log "$site now runs on QHturbo PHP $PHPV ($current -> include $INCLUDE); HTTP $before -> $after"
-  log "watch: tail -f $ROOT/www/wwwlogs/$site.error.log /var/log/qhturbo/php$TAG-fpm.log"
+  log "$site now runs on QHturbo PHP $PHPV ($current -> $(qhturbo_label "$vhost")); HTTP $before -> $after"
+  log "watch: tail -f $ROOT/www/wwwlogs/$site*error*log /var/log/qhturbo/php$TAG-fpm.log"
   log "undo:  sudo $0 disable $site"
 }
 
 do_disable() {
   need_root
+  need_web
   local site="${args[0]:-}" vhost orig
   [[ -n "$site" ]] || die "usage: $0 disable <site>"
   vhost="$VHOSTS/$site.conf"
   [[ -f "$vhost" ]] || die "vhost not found: $vhost"
-  grep -q "enable-php-qhturbo" "$vhost" || { log "$site does not use QHturbo"; return 0; }
+  uses_qhturbo "$vhost" || { log "$site does not use QHturbo"; return 0; }
   orig="$(cat "$vhost.qhturbo-orig" 2>/dev/null || true)"
-  [[ -n "$orig" ]] || orig="include enable-php-$TAG.conf;"
-  # Only the include line changes; other edits made since enable are kept.
-  sed -i -E "s#include[[:space:]]+enable-php-qhturbo[0-9]+\.conf;#$orig#" "$vhost"
-  nginx_test || { cp -p "$vhost.qhturbo-bak" "$vhost"; sed -i -E "s#include[[:space:]]+enable-php-qhturbo[0-9]+\.conf;#$orig#" "$vhost"; nginx_test || die "nginx -t still fails; inspect $vhost"; }
-  nginx_reload
+  if [[ -z "$orig" ]]; then
+    if [[ "$WEB" == apache ]]; then orig="$APACHE_ORIG_DEFAULT"; else orig="include enable-php-$TAG.conf;"; fi
+  fi
+  # Only the PHP handler changes; other edits made since enable are kept.
+  switch_back "$vhost" "$orig"
+  web_test || { cp -p "$vhost.qhturbo-bak" "$vhost"; switch_back "$vhost" "$orig"; web_test || die "$WEB config test still fails; inspect $vhost"; }
+  web_reload
   rm -f "$vhost.qhturbo-orig"
   log "$site is back on aaPanel PHP ($orig), HTTP $(http_code "$site"); backup kept: $vhost.qhturbo-bak"
 }
@@ -302,8 +384,8 @@ do_status() {
   local f any=0
   for f in "$VHOSTS"/*.conf; do
     [[ -e "$f" ]] || continue
-    if grep -q "enable-php-qhturbo" "$f"; then
-      any=1; printf '    %-40s %s\n' "$(basename "$f" .conf)" "$(grep -oE 'enable-php-qhturbo[0-9]+' "$f" | head -1)" >&2
+    if uses_qhturbo "$f"; then
+      any=1; printf '    %-40s %s\n' "$(basename "$f" .conf)" "$(qhturbo_label "$f")" >&2
     fi
   done
   (( any )) && log "sites above use QHturbo" || log "no site uses QHturbo"
@@ -324,7 +406,7 @@ do_uninstall() {
   local f
   for f in "$VHOSTS"/*.conf; do
     [[ -e "$f" ]] || continue
-    if grep -q "enable-php-qhturbo$TAG" "$f"; then
+    if grep -qE "enable-php-qhturbo$TAG\.conf|/run/qhturbo/php$TAG-fpm\.sock" "$f"; then
       args=("$(basename "$f" .conf)"); do_disable
     fi
   done

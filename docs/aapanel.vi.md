@@ -20,8 +20,8 @@ sudo scripts/aapanel.sh disable test.example.com          # quay lại PHP của
 
 | Yêu cầu | Ghi chú |
 |---|---|
-| aaPanel dùng **Nginx** | Script chưa hỗ trợ Apache/OpenLiteSpeed |
-| Ubuntu 20.04 / 22.04 / 24.04, Debian 11 / 12 | AlmaLinux/Rocky: script có nhánh `dnf` nhưng **chưa được kiểm thử** |
+| aaPanel dùng **Nginx hoặc Apache** | Tự nhận biết (`--web=nginx|apache` để chỉ định). Chưa hỗ trợ OpenLiteSpeed: script dừng trước khi build |
+| Ubuntu 20.04 / 22.04 / 24.04, Debian 11 / 12, AlmaLinux / Rocky | Đã test trên Ubuntu 24.04; với họ RHEL, nhánh `dnf` đã build được PHP 8.5 trên server của người dùng, phần còn lại chưa test |
 | Quyền root qua SSH | |
 | RAM ≥ 2 GB, hoặc thêm swap | Biên dịch PHP (intl, Zend VM) tốn RAM |
 | ≥ 4 GB ổ cứng trống | Mã nguồn và bản build nằm trong `/opt/qhturbo-lab` |
@@ -90,10 +90,12 @@ sudo scripts/aapanel.sh enable test.example.com --php=8.5
 
 Script làm như sau:
 1. Đo mã HTTP của site **trước** khi chuyển.
-2. Backup vhost (`/www/server/panel/vhost/nginx/test.example.com.conf.qhturbo-bak`).
-3. Đổi đúng **một dòng** `include enable-php-85.conf;` thành `include enable-php-qhturbo85.conf;`.
-4. `nginx -t`: lỗi thì khôi phục ngay.
-5. Reload nginx, đo lại mã HTTP. **Nếu site trả 5xx (mà trước đó không bị) thì tự quay về PHP aaPanel.**
+2. Backup vhost (`/www/server/panel/vhost/nginx/test.example.com.conf.qhturbo-bak`, hoặc `vhost/apache/` nếu dùng Apache).
+3. Chỉ đổi phần xử lý PHP:
+   - nginx: `include enable-php-84.conf;` thành `include enable-php-qhturbo85.conf;`
+   - Apache: `SetHandler "proxy:unix:/tmp/php-cgi-84.sock|fcgi://localhost"` thành `SetHandler "proxy:unix:/run/qhturbo/php85-fpm.sock|fcgi://localhost"` (trong mọi `<VirtualHost>` của file, cả HTTP và HTTPS)
+4. `nginx -t` / `httpd -t`: lỗi thì khôi phục ngay.
+5. Reload web server, đo lại mã HTTP. **Nếu site trả 5xx (mà trước đó không bị) thì tự quay về PHP aaPanel.**
 
 Site có HTTPS hoặc không trả lời ở `http://127.0.0.1/` thì chỉ định URL để kiểm tra: `--url=https://test.example.com/`.
 
@@ -138,7 +140,7 @@ sudo scripts/aapanel.sh uninstall --php=8.5          # mọi site về PHP aaPan
 sudo rm -rf /opt/qhturbo/8.5 /opt/qhturbo-lab        # (tuỳ chọn) xoá hẳn file
 ```
 
-Nếu script không chạy được, cứu bằng tay: `cp /www/server/panel/vhost/nginx/<site>.conf.qhturbo-bak /www/server/panel/vhost/nginx/<site>.conf && /www/server/nginx/sbin/nginx -s reload`.
+Nếu script không chạy được, cứu bằng tay: `cp /www/server/panel/vhost/nginx/<site>.conf.qhturbo-bak /www/server/panel/vhost/nginx/<site>.conf && /www/server/nginx/sbin/nginx -s reload` (Apache: `vhost/apache/` và `/www/server/apache/bin/httpd -k graceful`).
 
 ## 7. Lưu ý khi dùng cùng aaPanel
 

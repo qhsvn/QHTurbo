@@ -20,8 +20,8 @@ sudo scripts/aapanel.sh disable test.example.com          # go back to aaPanel's
 
 | Requirement | Notes |
 |---|---|
-| aaPanel using **Nginx** | The script does not support Apache/OpenLiteSpeed yet |
-| Ubuntu 20.04 / 22.04 / 24.04, Debian 11 / 12 | AlmaLinux/Rocky: the script has a `dnf` branch but it is **not tested yet** |
+| aaPanel using **Nginx or Apache** | Detected automatically (`--web=nginx|apache` to force it). OpenLiteSpeed is not supported yet: the script stops before building |
+| Ubuntu 20.04 / 22.04 / 24.04, Debian 11 / 12, AlmaLinux / Rocky | Tested on Ubuntu 24.04; on the RHEL family the `dnf` branch has built PHP 8.5 on a user's server, the rest is not tested yet |
 | Root access over SSH | |
 | RAM ≥ 2 GB, or add swap | Compiling PHP (intl, Zend VM) uses a lot of RAM |
 | ≥ 4 GB free disk space | Source code and builds live in `/opt/qhturbo-lab` |
@@ -90,10 +90,12 @@ sudo scripts/aapanel.sh enable test.example.com --php=8.5
 
 What the script does:
 1. Records the site's HTTP status code **before** switching.
-2. Backs up the vhost (`/www/server/panel/vhost/nginx/test.example.com.conf.qhturbo-bak`).
-3. Changes exactly **one line**, `include enable-php-85.conf;`, to `include enable-php-qhturbo85.conf;`.
-4. `nginx -t`: on error, restores immediately.
-5. Reloads nginx and checks the HTTP status code again. **If the site returns 5xx (and did not before), it automatically switches back to aaPanel's PHP.**
+2. Backs up the vhost (`/www/server/panel/vhost/nginx/test.example.com.conf.qhturbo-bak`, or `vhost/apache/` with Apache).
+3. Changes only the PHP handler:
+   - nginx: `include enable-php-84.conf;` becomes `include enable-php-qhturbo85.conf;`
+   - Apache: `SetHandler "proxy:unix:/tmp/php-cgi-84.sock|fcgi://localhost"` becomes `SetHandler "proxy:unix:/run/qhturbo/php85-fpm.sock|fcgi://localhost"` (in every `<VirtualHost>` of the file, HTTP and HTTPS)
+4. `nginx -t` / `httpd -t`: on error, restores immediately.
+5. Reloads the web server and checks the HTTP status code again. **If the site returns 5xx (and did not before), it automatically switches back to aaPanel's PHP.**
 
 If the site uses HTTPS or does not respond at `http://127.0.0.1/`, give the URL to check: `--url=https://test.example.com/`.
 
@@ -138,7 +140,7 @@ sudo scripts/aapanel.sh uninstall --php=8.5          # all sites back to aaPanel
 sudo rm -rf /opt/qhturbo/8.5 /opt/qhturbo-lab        # (optional) delete the files completely
 ```
 
-If the script cannot run, recover by hand: `cp /www/server/panel/vhost/nginx/<site>.conf.qhturbo-bak /www/server/panel/vhost/nginx/<site>.conf && /www/server/nginx/sbin/nginx -s reload`.
+If the script cannot run, recover by hand: `cp /www/server/panel/vhost/nginx/<site>.conf.qhturbo-bak /www/server/panel/vhost/nginx/<site>.conf && /www/server/nginx/sbin/nginx -s reload` (Apache: `vhost/apache/` and `/www/server/apache/bin/httpd -k graceful`).
 
 ## 7. Notes on using it alongside aaPanel
 
