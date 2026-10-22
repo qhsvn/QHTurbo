@@ -119,3 +119,10 @@
 
 - **Nguyên nhân:** khôi phục bằng `config()->set($snapshot)` chỉ ghi đè các khoá có trong snapshot; khoá mới (ví dụ `config(['tenant' => ...])`) vẫn còn, sang request của người dùng khác. Vì mảng không bao giờ bằng snapshot nữa, adapter còn ghi log "config changed" ở mọi request sau.
 - **Sửa:** thay nguyên mảng `items` của repository. Khi config không đổi, phép so sánh chỉ là so con trỏ (mảng dùng chung, copy-on-write). Test trong `frameworks.php`.
+
+## ISSUE-017 — Site mất kết nối database sau khi chuyển sang QHturbo (đã sửa)
+
+- **Ngày:** 2026-10-22
+- **Phát hiện:** server aaPanel thật đầu tiên (Apache, họ RHEL). Site chuyển bằng `aapanel.sh enable` báo không kết nối được database.
+- **Nguyên nhân:** unit systemd của PHP-FPM có `PrivateTmp=true`, nên PHP thấy một thư mục `/tmp` riêng và trống. MySQL của aaPanel nhận kết nối qua `/tmp/mysql.sock`, PHP dùng socket này mỗi khi host database là `localhost` (WordPress và hầu hết ứng dụng PHP). PHP-FPM của aaPanel không có tuỳ chọn này. Test aaPanel mô phỏng không chạy PHP-FPM bằng systemd nên không phát hiện được.
+- **Sửa:** bỏ `PrivateTmp` khỏi unit. `install.sh` giờ cập nhật các file unit tham chiếu trong `share/` (cấu hình trong `etc/` vẫn không bao giờ bị ghi đè), và `aapanel.sh sync-ini` chép thêm `mysqli.default_socket`, `pdo_mysql.default_socket`, `mysqli.default_port`. Bản đã cài: `sudo sed -i '/^PrivateTmp=/d' /etc/systemd/system/qhturbo-php85-fpm.service && sudo systemctl daemon-reload && sudo systemctl restart qhturbo-php85-fpm`.

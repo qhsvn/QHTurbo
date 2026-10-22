@@ -8,7 +8,8 @@ ExecStartPre=/bin/mkdir -p /run/qhturbo /var/log/qhturbo
 ExecStartPre=@PREFIX@/sbin/php-fpm --test
 ExecStart=@PREFIX@/sbin/php-fpm --nodaemonize --fpm-config @PREFIX@/etc/php-fpm.conf
 ExecReload=/bin/kill -USR2 $MAINPID
-PrivateTmp=true
+# No PrivateTmp: PHP must see the real /tmp, where aaPanel and many hosts put
+# the MySQL socket (/tmp/mysql.sock) and where PHP sessions often live.
 Restart=on-failure
 
 [Install]

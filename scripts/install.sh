@@ -49,9 +49,11 @@ else
 fi
 cpus="$(nproc)"
 
-# render <template> <destination>
+# render <template> <destination> [force]
+# Configuration in etc/ is never overwritten (the admin may have edited it);
+# "force" is for reference copies in share/ that must follow the template.
 render() {
-  local tpl="$1" dest="$2" content
+  local tpl="$1" dest="$2" force="${3:-}" content
   content="$(cat "$tpl")"
   content="${content//@PREFIX@/$QHT_PREFIX}"
   content="${content//@PHPVER@/$QHT_PHP}"
@@ -66,7 +68,7 @@ render() {
   content="${content//@MIN_SPARE@/$cpus}"
   content="${content//@MAX_SPARE@/$((cpus * 2))}"
   mkdir -p "$(dirname "$dest")"
-  if [[ -e "$dest" ]] && [[ "$(cat "$dest")" != "$content" ]]; then
+  if [[ -z "$force" && -e "$dest" ]] && [[ "$(cat "$dest")" != "$content" ]]; then
     printf '%s\n' "$content" > "$dest.qhturbo-new"
     log "kept existing $dest (new version: $dest.qhturbo-new)"
   else
@@ -82,12 +84,12 @@ fi
 render "$modes/compatible/conf.d/10-qhturbo-compatible.ini" "$root/etc/conf.d/10-qhturbo-compatible.ini"
 render "$modes/compatible/php-fpm.conf" "$root/etc/php-fpm.conf"
 render "$modes/compatible/php-fpm.d/www.conf" "$root/etc/php-fpm.d/www.conf"
-render "$modes/compatible/systemd/qhturbo-php-fpm.service" "$root/share/qhturbo/systemd/qhturbo-php$phptag-fpm.service"
+render "$modes/compatible/systemd/qhturbo-php-fpm.service" "$root/share/qhturbo/systemd/qhturbo-php$phptag-fpm.service" force
 performance=1
 [[ "$QHT_PHP" == 7.* || "$QHT_PHP" == 8.0 ]] && performance=0
 if (( performance )); then
   render "$modes/performance/performance.d/20-qhturbo-performance.ini" "$root/etc/performance.d/20-qhturbo-performance.ini"
-  render "$modes/performance/systemd/qhturbo-worker@.service" "$root/share/qhturbo/systemd/qhturbo-php$phptag-worker@.service"
+  render "$modes/performance/systemd/qhturbo-worker@.service" "$root/share/qhturbo/systemd/qhturbo-php$phptag-worker@.service" force
   cp "$modes/performance/worker.env.example" "$root/share/qhturbo/worker.env.example"
 fi
 cp "$QHT_ROOT/scripts/qht-doctor.php" "$QHT_ROOT/scripts/fpm-tune.py" "$root/share/qhturbo/"

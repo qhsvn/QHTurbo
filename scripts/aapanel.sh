@@ -216,7 +216,7 @@ sync_aapanel_ini() {
   done
   [[ -n "$src" ]] || { warn "no aaPanel php.ini found; QHturbo uses its own defaults (no disable_functions!)"; return 0; }
   local dest="$PREFIX/etc/conf.d/05-from-aapanel.ini" keys
-  keys='disable_functions|upload_max_filesize|post_max_size|max_execution_time|max_input_time|memory_limit|max_input_vars|date\.timezone|short_open_tag|display_errors|error_reporting|allow_url_fopen|cgi\.fix_pathinfo'
+  keys='disable_functions|upload_max_filesize|post_max_size|max_execution_time|max_input_time|memory_limit|max_input_vars|date\.timezone|short_open_tag|display_errors|error_reporting|allow_url_fopen|cgi\.fix_pathinfo|mysqli\.default_socket|pdo_mysql\.default_socket|mysqli\.default_port'
   {
     echo "; Copied by scripts/aapanel.sh from $src on $(date -u '+%Y-%m-%d %H:%M UTC')."
     echo "; Re-run '$0 sync-ini' after changing PHP settings in aaPanel."

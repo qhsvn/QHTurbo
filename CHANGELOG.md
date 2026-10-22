@@ -8,6 +8,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/). Every measuremen
 
 ### Added / Fixed — first run on a real aaPanel server (2026-10-22)
 - `aapanel.sh` supports aaPanel with **Apache** (detected automatically, or `--web=nginx|apache`): `enable` points the site's `SetHandler "proxy:unix:...|fcgi://localhost"` at QHturbo, with the same backup, config test and automatic rollback as nginx. New test `tests/aapanel-sim-apache.sh` (14/14).
+- Sites could not reach MySQL after switching (ISSUE-017): the PHP-FPM unit used `PrivateTmp`, hiding aaPanel's `/tmp/mysql.sock`. Removed; `sync-ini` also copies the MySQL socket settings.
 - `aapanel.sh install` stops **before** the build when no supported web server is found (it used to warn, build for 10–40 minutes, then fail while writing the nginx include).
 - `aapanel.sh install` failed on a fresh server with `failed to open error_log (/var/log/qhturbo/...)`: the PHP-FPM config test ran before the log directory existed. `install.sh` now creates `/run/qhturbo` and `/var/log/qhturbo` too.
 - Website (`website/`, GitHub Pages) with install guides and examples, and English/Vietnamese versions of every document.

@@ -119,3 +119,10 @@
 
 - **Cause:** restoring with `config()->set($snapshot)` only overwrites the keys present in the snapshot; new keys (e.g. `config(['tenant' => ...])`) remained and carried over into another user's request. Because the array never equalled the snapshot again, the adapter also logged "config changed" on every subsequent request.
 - **Fix:** replace the repository's whole `items` array. When the config has not changed, the comparison is just a pointer comparison (shared array, copy-on-write). Test in `frameworks.php`.
+
+## ISSUE-017 — Sites lose their database connection after switching to QHturbo (fixed)
+
+- **Date:** 2026-10-22
+- **Found:** first real aaPanel server (Apache, RHEL family). A site switched with `aapanel.sh enable` reported that it could not connect to the database.
+- **Cause:** the PHP-FPM systemd unit had `PrivateTmp=true`, so PHP saw an empty private `/tmp`. aaPanel's MySQL listens on `/tmp/mysql.sock`, which PHP uses whenever the database host is `localhost` (WordPress and most PHP apps). aaPanel's own PHP-FPM has no such setting. The simulated aaPanel tests did not run PHP-FPM under systemd, so they could not see it.
+- **Fix:** `PrivateTmp` removed from the unit. `install.sh` now refreshes the reference unit files in `share/` (configuration in `etc/` is still never overwritten), and `aapanel.sh sync-ini` also copies `mysqli.default_socket`, `pdo_mysql.default_socket` and `mysqli.default_port`. Existing installs: `sudo sed -i '/^PrivateTmp=/d' /etc/systemd/system/qhturbo-php85-fpm.service && sudo systemctl daemon-reload && sudo systemctl restart qhturbo-php85-fpm`.
