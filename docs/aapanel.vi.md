@@ -75,12 +75,15 @@ Sau bước này **chưa có site nào đổi gì**.
 ## 3. Bổ sung extension còn thiếu
 
 ```bash
-sudo scripts/aapanel.sh check --php=8.5        # xem dòng "extensions in aaPanel PHP but not in QHturbo"
+sudo scripts/aapanel.sh check --php=8.5        # xem các dòng "extensions in aaPanel PHP X but not in QHturbo"
 sudo scripts/install-ext.sh redis --php=8.5
-sudo scripts/install-ext.sh imagick --php=8.5  # cần trước: apt install -y libmagickwand-dev
+sudo scripts/install-ext.sh imagick --php=8.5  # tự cài gói phát triển của ImageMagick (apt/dnf)
+sudo scripts/install-ext.sh ioncube --php=8.5  # ionCube Loader, nếu hãng đã có bản cho phiên bản PHP đó
 ```
 
-`install-ext.sh` tải từ PECL; nếu PECL không truy cập được thì tải từ GitHub (bản ổn định mới nhất), rồi build, bật và reload FPM. Đã thử: redis 6.3.0 trên 8.5, apcu 5.1.28 trên 7.4.
+`install-ext.sh` tự cài các thư viện mà extension phổ biến cần (imagick, memcached, mcrypt, zstd, zmq, yaml…) bằng apt hoặc dnf, tải mã nguồn từ PECL (hoặc GitHub, bản ổn định mới nhất, khi không vào được PECL), rồi build, bật và reload FPM. Đã thử: redis 6.3.0 và zstd 0.18.0 trên 8.5, apcu 5.1.28 trên 7.4. `ftp`, `gettext` (và `xmlrpc` với 7.4) có sẵn trong PHP của QHturbo.
+
+**Dùng đúng phiên bản PHP mà site đang chạy.** `check` hiện phiên bản này cho từng site (`php-cgi-74.sock` = PHP 7.4). Chuyển site từ 7.4 lên 8.x cùng lúc với chuyển sang QHturbo là trộn hai thay đổi: PHP 8.0 đã bỏ nhiều tính năng cũ, và code cũ (ví dụ NukeViet 4.x) thường lỗi HTTP 500 trắng trang. Hãy cài đúng phiên bản trước (`install --php=7.4`), nâng cấp sau trên bản sao của site.
 
 ## 4. Chuyển một site sang QHturbo
 

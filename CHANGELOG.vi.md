@@ -9,6 +9,7 @@
 ### Added / Fixed — lần chạy đầu trên server aaPanel thật (2026-10-22)
 - `aapanel.sh` hỗ trợ aaPanel dùng **Apache** (tự nhận biết, hoặc `--web=nginx|apache`): `enable` trỏ dòng `SetHandler "proxy:unix:...|fcgi://localhost"` của site sang QHturbo, vẫn có backup, kiểm tra cấu hình và tự rollback như với nginx. Test mới `tests/aapanel-sim-apache.sh` (14/14).
 - Site không kết nối được MySQL sau khi chuyển (ISSUE-017): unit PHP-FPM dùng `PrivateTmp`, che mất `/tmp/mysql.sock` của aaPanel. Đã bỏ; `sync-ini` chép thêm cấu hình socket MySQL.
+- `install-ext.sh ioncube` cài ionCube Loader; `install-ext.sh` tự cài thư viện hệ thống mà extension cần (apt/dnf). `ftp` và `gettext` (và `xmlrpc` với 7.4) có sẵn khi build. Khi rollback, script nêu các extension mà PHP gốc của site có nhưng QHturbo thiếu, và phiên bản PHP site đang chạy.
 - `aapanel.sh install` dừng **trước** khi build nếu không tìm thấy web server được hỗ trợ (trước đây chỉ cảnh báo, build 10–40 phút rồi mới lỗi khi ghi file include của nginx).
 - `aapanel.sh install` lỗi trên server mới với `failed to open error_log (/var/log/qhturbo/...)`: bước kiểm tra cấu hình PHP-FPM chạy trước khi có thư mục log. `install.sh` giờ cũng tạo `/run/qhturbo` và `/var/log/qhturbo`.
 - Trang web (`website/`, GitHub Pages) với hướng dẫn cài đặt và ví dụ; mọi tài liệu có bản tiếng Anh và tiếng Việt.

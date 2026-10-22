@@ -75,12 +75,15 @@ After this step **no site has changed yet**.
 ## 3. Adding missing extensions
 
 ```bash
-sudo scripts/aapanel.sh check --php=8.5        # look at the "extensions in aaPanel PHP but not in QHturbo" line
+sudo scripts/aapanel.sh check --php=8.5        # look at the "extensions in aaPanel PHP X but not in QHturbo" lines
 sudo scripts/install-ext.sh redis --php=8.5
-sudo scripts/install-ext.sh imagick --php=8.5  # requires first: apt install -y libmagickwand-dev
+sudo scripts/install-ext.sh imagick --php=8.5  # installs ImageMagick's development package itself (apt/dnf)
+sudo scripts/install-ext.sh ioncube --php=8.5  # ionCube Loader, if ionCube has released one for that PHP version
 ```
 
-`install-ext.sh` downloads from PECL; if PECL is unreachable it downloads from GitHub (latest stable release), then builds, enables and reloads FPM. Tried: redis 6.3.0 on 8.5, apcu 5.1.28 on 7.4.
+`install-ext.sh` installs the libraries the common extensions need (imagick, memcached, mcrypt, zstd, zmq, yaml…) with apt or dnf, downloads the source from PECL (or GitHub, latest stable release, when PECL is unreachable), then builds, enables and reloads FPM. Tried: redis 6.3.0 and zstd 0.18.0 on 8.5, apcu 5.1.28 on 7.4. `ftp`, `gettext` (and `xmlrpc` on 7.4) are built into QHturbo PHP.
+
+**Use the PHP version the site already runs.** `check` shows it for every site (`php-cgi-74.sock` = PHP 7.4). Moving a site from 7.4 to 8.x at the same time as switching to QHturbo mixes two changes: PHP 8.0 removed many old features, and older code (e.g. NukeViet 4.x) often fails with a blank HTTP 500. Install the same version first (`install --php=7.4`), then upgrade later on a copy of the site.
 
 ## 4. Switching a site to QHturbo
 

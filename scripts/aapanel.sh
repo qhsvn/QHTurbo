@@ -82,7 +82,12 @@ web_reload() {
   sleep 1
 }
 
-ext_list() { "$1" -m 2>/dev/null | grep -v '^\[' | grep -v '^$' | tr 'A-Z' 'a-z' | sort -u; }
+# Extension names as install-ext.sh takes them ("ionCube Loader" -> ioncube);
+# warnings that php -m prints on stdout are dropped.
+ext_list() {
+  "$1" -m 2>/dev/null | grep -v '^\[' | grep -v '^$' | tr 'A-Z' 'a-z' | grep -vE 'warning|on line [0-9]' \
+    | sed -E 's/^.*ioncube.*$/ioncube/; s/^zend opcache$/opcache/' | sort -u
+}
 missing_exts() { # aaPanel PHP tag (e.g. 84) -> extensions it has that QHturbo lacks
   local panel_php="$ROOT/www/server/php/$1/bin/php"
   [[ -x "$panel_php" && -x "$PREFIX/bin/php" ]] || return 0
