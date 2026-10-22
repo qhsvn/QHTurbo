@@ -92,3 +92,22 @@ Hệ số tốc độ so với PHP 8.5 interpreter (lớn hơn 1 là nhanh hơn 
 - **PHP thắng Node.js và Go** ở các bài mà thời gian nằm trong thư viện C của PHP: `hashmap` (mảng kết hợp), `strings`, và `json` (thắng Go; `encoding/json` dùng reflection nên chậm).
 - **PHP thua xa Node.js và Go ở tính toán số thuần và OOP** (Node.js/Go nhanh hơn PHP interp 6–26×, và vẫn nhanh hơn PHP JIT 1.7–19×). Đây là giới hạn của kiến trúc (kiểu động, zval, JIT kém V8 hoặc Go biên dịch AOT). Tinh chỉnh cấu hình hay PGO không lấp được khoảng cách này.
 - RAM: PHP ngang Python và Go (15–60 MiB); Node.js dùng 50–335 MiB.
+
+## 2026-10-22 — Web: QHturbo Compatible (FPM) so với Performance (worker)
+
+Báo cáo: `results/web/2026-10-22-php8.5-modes.md` (`benchmarks/web/run.sh`). PHP 8.5.12 build `full`, framework giả lập (300 class, container, 40 config, 203 route), wrk -t2 10 s sau 3 s warm-up, nginx + PHP + wrk trên cùng 4 vCPU. RAM đo bằng PSS (bộ nhớ dùng chung chỉ tính một lần).
+
+| Bài | Compatible FPM ×4 | +perf-ini FPM ×4 | Performance ×4 |
+|---|---|---|---|
+| `/hello` | 2.991 req/s, p99 16,1 ms, 33 MiB | 3.174 | **23.598 req/s, p99 6,8 ms, 43 MiB (7,9×)** |
+| `/api/users/42` | 3.008 req/s, p99 15,3 ms, 30 MiB | 2.865 | **21.266 req/s, p99 7,2 ms, 43 MiB (7,1×)** |
+
+| `/io` (3 × 20 ms backend) | req/s | p99 | RAM |
+|---|---|---|---|
+| FPM ×4 (I/O chặn) | 49 (491 timeout) | — | 30 MiB |
+| FPM ×64 (I/O chặn) | 939 | 162 ms | 104 MiB |
+| Performance ×4, concurrency 64 (async) | **2.389** | **80 ms** | **56 MiB** |
+
+- Cấu hình Performance cho FPM (`validate_timestamps=0` + JIT) chỉ thay đổi −5% đến +6%, tức là cấu hình không phải yếu tố chính.
+- Lần chạy đầu bị loại vì ISSUE-004. Phép đo RAM theo RSS đếm trùng OPcache dùng chung, nên đã chuyển sang PSS.
+- Kiểm tra rò rỉ: 30 s tải liên tục (775.525 request), PSS 54 MiB không đổi (sau khi sửa ISSUE-005).

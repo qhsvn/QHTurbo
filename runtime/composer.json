@@ -1,0 +1,18 @@
+{
+    "name": "qhturbo/runtime",
+    "description": "QHturbo Performance mode: long-lived PHP workers, event loop, Fiber-based async I/O and state rules",
+    "type": "library",
+    "license": "MIT",
+    "require": {
+        "php": ">=8.1"
+    },
+    "suggest": {
+        "ext-pcntl": "Multi-process workers (--workers=N), graceful reload and shutdown",
+        "ext-posix": "Signals to worker processes"
+    },
+    "autoload": {
+        "psr-4": { "QHTurbo\\Runtime\\": "src/" },
+        "files": ["src/Async/functions.php"]
+    },
+    "bin": ["bin/qhturbo-serve"]
+}

@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
-# Build one PHP CLI variant into build/<php>/<variant>/bin/php.
-# The PHP branch comes from QHT_PHP (7.4 ... 8.5, default 8.5).
+# Build one PHP variant into build/<php>/<variant>[-full]/.
+# The PHP branch comes from QHT_PHP (7.4 ... 8.5, default 8.5) and the
+# extension set from QHT_PROFILE (minimal | full, see config/build.env).
+# The full profile also builds PHP-FPM; install it with scripts/install.sh.
 #
 #   baseline     upstream tag, BASE_CFLAGS
 #   qhturbo      upstream tag + patches/, BASE_CFLAGS      (isolates the patches)
@@ -17,8 +19,8 @@ git -C "$PHP_SRC" rev-parse -q --verify "$PHP_COMMIT^{commit}" >/dev/null 2>&1 \
   || die "$PHP_TAG not fetched; run QHT_PHP=$QHT_PHP scripts/bootstrap.sh first"
 warn_if_eol
 
-wt="$WORKTREES/$variant"
-meta="$WORKTREES/.meta-$variant"
+wt="$WORKTREES/$variant$PROFILE_TAG"
+meta="$WORKTREES/.meta-$variant$PROFILE_TAG"
 want_stamp="$(source_stamp "$variant")"
 
 diff_hash() { git -C "$wt" diff HEAD --binary | sha256sum | cut -d' ' -f1; }
@@ -56,7 +58,7 @@ Export them first (scripts/make-patch.sh $variant <name>) or back them up, then 
 }
 
 variant_flags() {
-  local cflags="$BASE_CFLAGS" ldflags=""
+  local cflags="$BASE_CFLAGS" ldflags="${QHT_EXTRA_LDFLAGS:-}"
   if [[ "$variant" == *-pgo ]]; then
     cflags+="${PGO_EXTRA_CFLAGS:+ $PGO_EXTRA_CFLAGS}"
     ldflags+="$PGO_EXTRA_LDFLAGS"
@@ -106,13 +108,15 @@ fi
 
 if [[ "$variant" == *-pgo ]]; then build_pgo; else build_plain; fi
 
-out="$BUILD_DIR/$variant"
+out="$BUILD_DIR/$variant$PROFILE_TAG"
 mkdir -p "$out/bin" "$out/lib"
 cp "$wt/sapi/cli/php" "$out/bin/php"
+if [[ -f "$wt/sapi/fpm/php-fpm" ]]; then cp "$wt/sapi/fpm/php-fpm" "$out/bin/php-fpm"; fi
 rm -f "$out/lib/"*.so
 if [[ -f "$wt/modules/opcache.so" ]]; then cp "$wt/modules/opcache.so" "$out/lib/"; fi
 {
   echo "variant=$variant"
+  echo "profile=$QHT_PROFILE"
   echo "source_stamp=$want_stamp"
   echo "upstream=$PHP_TAG $PHP_COMMIT"
   echo "patches=$(patch_list | xargs -r -n1 basename | tr '\n' ' ')"
@@ -124,6 +128,7 @@ if [[ -f "$wt/modules/opcache.so" ]]; then cp "$wt/modules/opcache.so" "$out/lib
   "$out/bin/php" -n "${OPCACHE_ARGS[@]}" -v | head -1 | sed 's/^/version=/'
   "$out/bin/php" -n "${OPCACHE_ARGS[@]}" -d opcache.enable_cli=1 -r \
     'echo "opcache=", (function_exists("opcache_get_status") ? "yes" : "no"), "\n";'
+  echo "extensions=$("$out/bin/php" -n -m | grep -v '^\[' | grep -v '^$' | tr '\n' ' ')"
 } > "$out/BUILD-INFO.txt"
 log "Built $out/bin/php"
 cat "$out/BUILD-INFO.txt" >&2

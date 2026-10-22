@@ -1,8 +1,8 @@
 # PHP QHturbo — Project Status
 
-Cập nhật: 2026-10-22 08:40 UTC (15:40 +07:00)
-Giai đoạn hiện tại: PHASE 01 xong → chuẩn bị PHASE 02/04/05
-Tổng quan: **Phase 01 DONE · Phase 04 IN_PROGRESS · còn lại TODO**
+Cập nhật: 2026-10-22 09:40 UTC (16:40 +07:00)
+Giai đoạn hiện tại: PHASE 05: hai chế độ Compatible / Performance
+Tổng quan: **Phase 01 DONE · Phase 04, 05 IN_PROGRESS · còn lại TODO**
 
 Máy build/đo: VM đám mây (Intel Xeon 2.8 GHz, 4 vCPU, 15 GiB, Ubuntu 24.04.5, gcc 13.3.0). Chưa chạy trên máy Windows/WSL của người dùng.
 
@@ -19,9 +19,13 @@ Máy build/đo: VM đám mây (Intel Xeon 2.8 GHz, 4 vCPU, 15 GiB, Ubuntu 24.04.
 | QHT-P01-007 So sánh 7.4 ↔ 8.5 và với Python/Node/Go | DONE | `results/2026-10-22-cross-*` | Xem README |
 | QHT-JIT-001 PGO (v1, v2) | **NO-GO** | `results/2026-10-22-php8.5-pgo-v1`, `-v2` | v2: interp +0.3%, jit −3.2%; PHPT vẫn 0 fail |
 | QHT-JIT-001a LTO | **NO-GO** | ISSUE-001 | Xung đột global register variables |
+| QHT-WEB-001 **QHturbo Compatible**: build `full` + FPM, install/package, cấu hình | DONE (8.5, 7.4) | `docs/modes/compatible.md` | App cũ chạy giống hệt trên 7.4 và 8.5 qua nginx → FPM; Composer + Laravel 13 (test pass) trên 8.5; Composer + Guzzle HTTPS trên 7.4 |
+| QHT-WEB-002 **QHturbo Performance**: runtime worker/event loop/async/quy tắc trạng thái | DONE (bản đầu) | `runtime/`, 15 test pass trên 8.5 và 8.3 | 7–8× FPM ở bài CPU; 2,5× ở bài I/O với một nửa RAM (`results/web/`) |
+| QHT-WEB-003 `qht-doctor`, `fpm-tune` | DONE | `scripts/` | doctor chạy được từ 7.4 trở lên |
+| QHT-WEB-004 Driver MySQL/Redis async, pool kết nối | TODO | `docs/proposals.md` B4–B5 | Cần để dùng `--concurrency>1` với ứng dụng có DB |
+| QHT-WEB-005 Adapter Laravel/Symfony, plugin aaPanel, gói .deb | TODO | B6–B8 | |
 | QHT-P02 Bản vá Zend Engine | TODO | — | Cần `perf` trên máy riêng |
 | QHT-P03 Bộ nhớ | TODO | — | |
-| QHT-P05 FPM / aaPanel | TODO | — | |
 | QHT-P06 Phát hành | TODO | — | |
 | Build + đo 8.0, 8.1, 8.2, 8.3, 8.4 | TODO | — | Script đã hỗ trợ, chưa chạy |
 
@@ -42,6 +46,11 @@ Không có test fail nào liên quan đến QHturbo (chưa có patch mã nguồn
 3. Build + PHPT + benchmark cho 8.0 → 8.4 (`QHT_PHP=8.x`).
 4. Phase 5: thêm biến thể FPM + extension aaPanel, benchmark HTTP bằng ứng dụng thật. Đây là nơi người dùng thấy lợi ích rõ nhất (OPcache, preload, `pm.*`, Redis/MySQL).
 5. Phase 2: trên máy riêng có `perf`, profile `objects`/`nbody`/`spectral_norm` để chọn giả thuyết `QHT-ENG-001`.
+
+## Lỗi phát hiện và đã sửa trong phiên này
+
+- ISSUE-004: chế độ một tiến trình tự tắt sau `--max-requests`.
+- ISSUE-005: rò rỉ RAM do timer đã huỷ (129 → 315 MiB trong 30 s, nay ổn định 54 MiB).
 
 ## Vướng mắc
 

@@ -1,0 +1,60 @@
+#!/usr/bin/env php
+<?php
+
+declare(strict_types=1);
+
+// QHturbo Performance mode: long-lived PHP workers with an event loop.
+//   qhturbo-serve app.php [--host=127.0.0.1] [--port=8080] [--workers=N]
+//                 [--concurrency=1] [--max-requests=10000] [--memory-limit=256M]
+//                 [--superglobals] [--strict-state] [--state-check-every=100] [--debug]
+
+if (PHP_VERSION_ID < 80100) {
+    fwrite(STDERR, "qhturbo-serve needs PHP >= 8.1 (Fibers). Use QHturbo Compatible mode (PHP-FPM) for PHP " . PHP_VERSION . ".\n");
+    exit(1);
+}
+if (PHP_SAPI !== 'cli') {
+    fwrite(STDERR, "qhturbo-serve must run with the CLI SAPI\n");
+    exit(1);
+}
+
+require dirname(__DIR__) . '/src/autoload.php';
+
+use QHTurbo\Runtime\Worker\Options;
+use QHTurbo\Runtime\Worker\Supervisor;
+
+// Options may come before or after the app file (getopt() stops at the first
+// positional argument, so parse by hand).
+$known = ['host', 'port', 'workers', 'concurrency', 'max-requests', 'memory-limit',
+    'superglobals', 'strict-state', 'state-check-every', 'debug', 'help'];
+$opts = [];
+$app = null;
+foreach (array_slice($argv, 1) as $arg) {
+    if ($arg === '-h') {
+        $opts['help'] = false;
+    } elseif (str_starts_with($arg, '--')) {
+        [$name, $value] = array_pad(explode('=', substr($arg, 2), 2), 2, false);
+        if (!in_array($name, $known, true)) {
+            fwrite(STDERR, "unknown option --$name\n");
+            exit(1);
+        }
+        $opts[$name] = $value;
+    } else {
+        $app = $arg;
+    }
+}
+if ($app === null || isset($opts['help'])) {
+    fwrite(STDERR, "usage: qhturbo-serve app.php [--host=H] [--port=P] [--workers=N] [--concurrency=C]\n"
+        . "       [--max-requests=N] [--memory-limit=256M] [--superglobals] [--strict-state] [--debug]\n");
+    exit($app === null ? 1 : 0);
+}
+if (!is_file($app)) {
+    fwrite(STDERR, "app file not found: $app\n");
+    exit(1);
+}
+
+try {
+    exit((new Supervisor(realpath($app), Options::fromCli($opts)))->run());
+} catch (\Throwable $e) {
+    fwrite(STDERR, 'qhturbo-serve: ' . $e->getMessage() . "\n");
+    exit(1);
+}

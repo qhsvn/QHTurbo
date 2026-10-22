@@ -1,0 +1,23 @@
+# QHturbo Performance mode: one instance per application.
+#   /etc/qhturbo/worker-<name>.env  (see worker.env.example)
+#   systemctl enable --now qhturbo-worker@<name>
+#   systemctl reload qhturbo-worker@<name>   # rolling restart after deploy
+[Unit]
+Description=QHturbo PHP @PHPVER@ worker (%i)
+After=network.target
+
+[Service]
+EnvironmentFile=/etc/qhturbo/worker-%i.env
+Environment=PHP_INI_SCAN_DIR=@PREFIX@/etc/conf.d:@PREFIX@/etc/performance.d
+User=@USER@
+Group=@GROUP@
+ExecStart=@PREFIX@/bin/php @PREFIX@/share/qhturbo-runtime/bin/qhturbo-serve ${QHT_APP} \
+  --host=${QHT_HOST} --port=${QHT_PORT} --workers=${QHT_WORKERS} --concurrency=${QHT_CONCURRENCY} \
+  --max-requests=${QHT_MAX_REQUESTS} --memory-limit=${QHT_MEMORY_LIMIT} $QHT_EXTRA_ARGS
+ExecReload=/bin/kill -HUP $MAINPID
+KillSignal=SIGTERM
+TimeoutStopSec=30
+Restart=on-failure
+
+[Install]
+WantedBy=multi-user.target

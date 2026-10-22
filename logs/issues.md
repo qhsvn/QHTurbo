@@ -33,3 +33,17 @@
 - **Ảnh hưởng:** độ nhiễu (CV) cao hơn máy riêng; dùng phép thử A/A (`baseline` so với `qhturbo` khi chưa có patch) để biết mức nhiễu.
 - **Việc cần làm:** đo lại trên máy riêng hoặc máy chủ staging trước khi công bố số cho production.
 - **Trạng thái:** mở.
+
+## ISSUE-004 — Chế độ một tiến trình tự tắt sau `--max-requests` (đã sửa)
+
+- **Ngày:** 2026-10-22
+- **Hiện tượng:** benchmark `/io` báo 100% lỗi ở chế độ Performance. Backend giả lập (`--workers=0`) chạy được 10.089 request rồi dừng hẳn, nên mọi lệnh gọi bị `connection refused`. Bên FPM chỉ nhận warning nhưng vẫn trả 200, nên số đo của FPM cũng sai.
+- **Nguyên nhân:** giới hạn tái tạo mặc định (10.000 request) vẫn áp dụng khi không có supervisor nào để khởi động lại tiến trình.
+- **Sửa:** khi `--workers=0` thì tắt cơ chế tái tạo và ghi cảnh báo. Có test mới (`single-process mode keeps serving`). Front controller FPM của benchmark trả 500 khi backend lỗi, để lỗi không còn bị ẩn.
+
+## ISSUE-005 — Rò rỉ bộ nhớ do timer đã huỷ (đã sửa)
+
+- **Ngày:** 2026-10-22
+- **Hiện tượng:** tải liên tục 30 s (~26.000 req/s), tổng PSS của 4 worker tăng tuyến tính 129 → 315 MiB.
+- **Nguyên nhân:** mỗi `read()` có timeout tạo một timer (5–30 s). Timer bị huỷ chỉ được xoá khỏi bảng, còn phần tử trong `SplPriorityQueue` nằm lại tới khi đến hạn, khoảng 750.000 phần tử.
+- **Sửa:** `Loop::cancel()` dựng lại hàng đợi khi số timer đã huỷ > 1024 và > số timer còn sống. Thêm `Loop::stats()` và test (50.000 timeout bị huỷ, hàng đợi ≤ 1.100). Đo lại: 54 MiB, phẳng suốt 30 s.

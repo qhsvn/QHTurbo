@@ -1,0 +1,15 @@
+[Unit]
+Description=QHturbo PHP @PHPVER@ FastCGI Process Manager (Compatible mode)
+After=network.target
+
+[Service]
+Type=simple
+ExecStartPre=/bin/mkdir -p /run/qhturbo /var/log/qhturbo
+ExecStartPre=@PREFIX@/sbin/php-fpm --test
+ExecStart=@PREFIX@/sbin/php-fpm --nodaemonize --fpm-config @PREFIX@/etc/php-fpm.conf
+ExecReload=/bin/kill -USR2 $MAINPID
+PrivateTmp=true
+Restart=on-failure
+
+[Install]
+WantedBy=multi-user.target

@@ -13,6 +13,14 @@ SUPPORTED_PHP=(7.4 8.0 8.1 8.2 8.3 8.4 8.5)
 [[ -f "$QHT_ROOT/config/versions/$QHT_PHP.env" ]] \
   || { echo "[qht] ERROR: unsupported QHT_PHP=$QHT_PHP (supported: ${SUPPORTED_PHP[*]})" >&2; exit 1; }
 
+# Build profile: minimal (benchmarks) or full (FPM + common extensions).
+QHT_PROFILE="${QHT_PROFILE:-minimal}"
+[[ "$QHT_PROFILE" == minimal || "$QHT_PROFILE" == full ]] \
+  || { echo "[qht] ERROR: QHT_PROFILE must be minimal or full" >&2; exit 1; }
+# Directory suffix so profiles of the same variant never share a worktree.
+PROFILE_TAG=""
+[[ "$QHT_PROFILE" == minimal ]] || PROFILE_TAG="-$QHT_PROFILE"
+
 PHP_SRC="$QHT_LAB/php-src"
 WORKTREES="$QHT_LAB/worktrees/$QHT_PHP"
 BUILD_DIR="$QHT_LAB/build/$QHT_PHP"
@@ -62,13 +70,13 @@ source_stamp() {
   } | sha256sum | cut -d' ' -f1
 }
 
-php_bin() { echo "$BUILD_DIR/$1/bin/php"; }
+php_bin() { echo "$BUILD_DIR/$1$PROFILE_TAG/bin/php"; }
 
 # Fills the OPCACHE_ARGS array with the "-d" arguments that load OPcache for
 # a built variant. PHP < 8.5 builds OPcache as a shared zend_extension; 8.5+
 # links it statically.
 opcache_args() {
-  local so="$BUILD_DIR/$1/lib/opcache.so"
+  local so="$BUILD_DIR/$1$PROFILE_TAG/lib/opcache.so"
   OPCACHE_ARGS=()
   if [[ -f "$so" ]]; then OPCACHE_ARGS=(-d "zend_extension=$so"); fi
 }

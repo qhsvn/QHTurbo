@@ -34,10 +34,20 @@ jobs:
         with: { node-version: '22' }
       - uses: actions/setup-go@v5
         with: { go-version: 'stable' }
-      - name: Lint PHP workloads and training scripts
-        run: for f in benchmarks/workloads/*/main.php benchmarks/training/*.php; do php -l "$f"; done
+      - name: Lint PHP workloads, training scripts and qht-doctor
+        run: for f in benchmarks/workloads/*/main.php benchmarks/training/*.php scripts/qht-doctor.php; do php -l "$f"; done
       - name: Same output in PHP / Python / Node.js / Go
         run: tests/check-workloads.sh "$(command -v php)"
+      - name: qht-doctor runs (exit 0 = ok, 1 = findings, anything else = crash)
+        run: |
+          set +e
+          php scripts/qht-doctor.php --scan=runtime/examples; code=$?
+          test $code -le 1
+      - name: Performance runtime tests (PHP >= 8.1)
+        if: matrix.php != '7.4' && matrix.php != '8.0'
+        run: |
+          for f in $(find runtime -name '*.php') runtime/bin/qhturbo-serve; do php -l "$f" > /dev/null; done
+          php runtime/tests/run.php
 
   # Build the pinned upstream baseline + QHturbo patches, run a PHPT subset
   # and a quick benchmark smoke test.
