@@ -181,7 +181,7 @@ return function (Request $r) use ($db, $redis): array {
 | Lệnh | Mọi lệnh qua `__call`/`command()`, `pipeline()` | `query($sql, $params)` với `?`, mảng cho `IN (?)`, `transaction(fn)`, `withConnection(fn)` |
 | Lỗi | Lỗi kiểu `WRONGTYPE` → `RedisException`, kết nối vẫn dùng tiếp | `QueryException` (mã MySQL, ví dụ 1062); timeout thì loại kết nối |
 | An toàn trạng thái (R7) | — | Transaction còn mở khi trả kết nối thì **tự rollback** và ghi log |
-| Phục hồi | Server đóng kết nối → kết nối bị loại, lần gọi sau mở kết nối mới | "Server has gone away" khi kết nối rảnh → tự thử lại một lần |
+| Phục hồi | Server đóng kết nối → kết nối bị loại, lần gọi sau mở kết nối mới | Kết nối rảnh quá 30 giây được kiểm tra trước khi dùng; câu lệnh lỗi trước khi tới server được thử lại một lần (không bao giờ thử lại câu có thể đã chạy) |
 
 Ngoài fiber (ví dụ dùng trong FPM hoặc script CLI), mỗi lệnh chạy như lệnh chặn bình thường.
 

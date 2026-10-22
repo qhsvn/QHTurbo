@@ -181,7 +181,7 @@ return function (Request $r) use ($db, $redis): array {
 | Commands | Any command via `__call`/`command()`, `pipeline()` | `query($sql, $params)` with `?`, arrays for `IN (?)`, `transaction(fn)`, `withConnection(fn)` |
 | Errors | `WRONGTYPE`-style errors → `RedisException`, the connection remains usable | `QueryException` (MySQL code, e.g. 1062); on timeout the connection is discarded |
 | State safety (R7) | — | A transaction still open when the connection is returned is **rolled back automatically** and logged |
-| Recovery | Server closes the connection → the connection is discarded, the next call opens a new one | "Server has gone away" on an idle connection → automatic single retry |
+| Recovery | Server closes the connection → the connection is discarded, the next call opens a new one | Connections idle for over 30 s are checked before use; a query that failed before reaching the server is retried once (never one that may have run) |
 
 Outside a fiber (for example in FPM or a CLI script), each command runs as an ordinary blocking call.
 

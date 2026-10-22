@@ -2,6 +2,8 @@
 
 **English** · [Tiếng Việt](README.vi.md)
 
+**Website:** install guides and examples for Nginx, Apache and aaPanel: <https://qhsvn.github.io/QHTurbo/> (source in [`website/`](website/)).
+
 QHturbo makes PHP applications run faster **with measured, reproducible evidence**, for **PHP 7.4 to 8.5**. It is built from the official PHP source (`php-src`), installs **beside** your existing PHP (never over it), and offers two ways to run your code:
 
 - **QHturbo Compatible**: standard PHP-FPM. Runs WordPress, Laravel, Composer and legacy code **without code changes**.

@@ -2,6 +2,8 @@
 
 [English](README.md) · **Tiếng Việt**
 
+**Trang web:** hướng dẫn cài đặt và ví dụ cho Nginx, Apache và aaPanel: <https://qhsvn.github.io/QHTurbo/#vi> (mã nguồn trong [`website/`](website/)).
+
 QHturbo giúp ứng dụng PHP chạy nhanh hơn, **có số đo kiểm chứng và tái lập được**, cho **PHP 7.4 đến 8.5**. Dự án build từ mã nguồn PHP chính thức (`php-src`), cài **song song** với PHP đang có (không ghi đè), và có hai cách chạy:
 
 - **QHturbo Compatible:** PHP-FPM chuẩn. Chạy WordPress, Laravel, Composer và code cũ **không cần sửa code**.

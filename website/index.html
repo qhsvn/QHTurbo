@@ -1,0 +1,736 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<!--HEAD-->
+<title>QHturbo Guide</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<meta name="description" content="Install and run PHP QHturbo: PHP 7.4–8.5 beside your existing PHP, PHP-FPM (Compatible) or long-lived workers (Performance), with examples.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;800&family=JetBrains+Mono:wght@400;600&display=swap">
+<style>
+/* Layout: sticky top bar; on wide screens a table-of-contents rail beside a ~70ch reading column. */
+:root {
+  --bg: #f4f6f8; --surface: #ffffff; --ink: #14202b; --muted: #566472; --line: #d9e0e7;
+  --accent: #0a6c78; --accent-soft: #e1f1f3; --accent-ink: #ffffff;
+  --code-bg: #0f1922; --code-fg: #d7e2ea; --code-dim: #7f93a3;
+  --ok: #1d7340; --ok-soft: #e2f3e8; --warn: #8a5a00; --warn-soft: #fbf0d9; --plan: #5d4fa0; --plan-soft: #ece9f8;
+  --bar-old: #9aa8b5; --bar-new: #0a6c78;
+  --font-display: "Be Vietnam Pro", "Segoe UI", system-ui, sans-serif;
+  --font-body: "Be Vietnam Pro", "Segoe UI", system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+  --radius: 10px;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bg: #0c1319; --surface: #121c25; --ink: #e4ebf1; --muted: #93a2b0; --line: #233240;
+  --accent: #4cc3cd; --accent-soft: #10303a; --accent-ink: #061217;
+  --code-bg: #071016; --code-fg: #d7e2ea; --code-dim: #71879a;
+  --ok: #62c98f; --ok-soft: #12301f; --warn: #e2b04a; --warn-soft: #33270c; --plan: #ab9ff0; --plan-soft: #241f3f;
+  --bar-old: #4b5b69; --bar-new: #4cc3cd; color-scheme: dark } }
+:root[data-theme="dark"] {
+  --bg: #0c1319; --surface: #121c25; --ink: #e4ebf1; --muted: #93a2b0; --line: #233240;
+  --accent: #4cc3cd; --accent-soft: #10303a; --accent-ink: #061217;
+  --code-bg: #071016; --code-fg: #d7e2ea; --code-dim: #71879a;
+  --ok: #62c98f; --ok-soft: #12301f; --warn: #e2b04a; --warn-soft: #33270c; --plan: #ab9ff0; --plan-soft: #241f3f;
+  --bar-old: #4b5b69; --bar-new: #4cc3cd; color-scheme: dark }
+
+* { box-sizing: border-box }
+[hidden] { display: none !important }
+code, pre, .term { font-variant-ligatures: none }
+html { scroll-padding-top: 72px }
+body { margin: 0; background: var(--bg); color: var(--ink); font: 400 16px/1.65 var(--font-body); -webkit-text-size-adjust: 100% }
+body:not(.vi) .vi, body.vi .en { display: none !important }
+a { color: var(--accent) }
+a:focus-visible, button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px }
+h1, h2, h3 { font-family: var(--font-display); line-height: 1.2; text-wrap: balance; margin: 0 }
+h2 { font-size: clamp(1.5rem, 1.2rem + 1.2vw, 2rem); font-weight: 800; letter-spacing: -0.02em }
+h3 { font-size: 1.15rem; font-weight: 600; margin-top: 8px }
+p { margin: 0 }
+code { font-family: var(--font-mono); font-size: 0.88em; background: var(--accent-soft); padding: 0.1em 0.35em; border-radius: 4px; overflow-wrap: anywhere }
+.wrap { max-width: 1180px; margin: 0 auto; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)) }
+
+/* top bar */
+body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-area-inset-top, 0px); z-index: 10; background: var(--surface) }
+.top { position: sticky; top: env(safe-area-inset-top, 0px); z-index: 5; background: var(--surface); border-bottom: 1px solid var(--line) }
+.top .wrap { display: flex; align-items: center; gap: 16px; min-height: 56px; padding-block: 8px }
+.brand { font: 800 1.1rem var(--font-display); letter-spacing: -0.02em; color: var(--ink); text-decoration: none; display: flex; align-items: center; gap: 8px }
+.brand svg { width: 26px; height: 26px }
+.top nav { display: flex; gap: 4px; flex-wrap: wrap; margin-left: auto }
+.top nav a { color: var(--muted); text-decoration: none; font-size: 0.92rem; padding: 6px 10px; border-radius: 6px }
+.top nav a:hover { color: var(--ink); background: var(--accent-soft) }
+.lang { display: inline-flex; border: 1px solid var(--line); border-radius: 999px; overflow: hidden; flex: none }
+.lang button { font: 600 0.8rem var(--font-body); letter-spacing: 0.04em; border: 0; background: none; color: var(--muted); padding: 6px 12px; cursor: pointer }
+.lang button[aria-pressed="true"] { background: var(--accent); color: var(--accent-ink) }
+@media (max-width: 860px) { .top nav { display: none } .lang { margin-left: auto } }
+
+/* hero */
+.hero .wrap { display: grid; grid-template-columns: minmax(0, 1.05fr) minmax(0, 1fr); gap: 40px; align-items: center; padding-block: 56px 40px }
+.eyebrow { font: 600 0.78rem var(--font-body); letter-spacing: 0.12em; text-transform: uppercase; color: var(--accent) }
+.hero h1 { font-size: clamp(2.2rem, 1.4rem + 3.2vw, 3.6rem); font-weight: 800; letter-spacing: -0.035em; margin-top: 10px }
+.hero h1 em { font-style: normal; color: var(--accent) }
+.lede { font-size: 1.12rem; color: var(--muted); margin-top: 16px; max-width: 34em }
+.cta { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 24px }
+.btn { display: inline-flex; align-items: center; gap: 8px; font: 600 0.95rem var(--font-body); padding: 10px 18px; border-radius: 8px; text-decoration: none; border: 1px solid var(--line); color: var(--ink); background: var(--surface) }
+.btn.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-ink) }
+.term { margin: 0; min-width: 0; background: var(--code-bg); color: var(--code-fg); border-radius: var(--radius); padding: 18px 20px; font: 400 0.8rem/1.7 var(--font-mono); white-space: pre-wrap; overflow-wrap: anywhere; border: 1px solid var(--line); box-shadow: 0 18px 40px -24px rgba(5, 20, 30, 0.6) }
+.term .p { color: var(--code-dim) }
+.term .ok { color: #7fd6a4 }
+.term .hi { color: #6fd3dc }
+@media (max-width: 900px) { .hero .wrap { grid-template-columns: minmax(0, 1fr); padding-block: 36px 28px } }
+
+/* modes + numbers band */
+.band { border-block: 1px solid var(--line); background: var(--surface) }
+.band .wrap { padding-block: 32px; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)) minmax(0, 1.4fr); gap: 28px }
+.mode h3 { margin: 0 0 6px; display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap }
+.mode .tag { font: 600 0.72rem var(--font-body); letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted) }
+.mode p { color: var(--muted); font-size: 0.95rem }
+.bars { display: grid; gap: 14px; font-size: 0.86rem }
+.bars .row { display: grid; grid-template-columns: 7.5em minmax(0, 1fr); gap: 4px 12px; align-items: center }
+.bars .lbl { grid-row: span 2; font-weight: 600 }
+.bar { height: 14px; border-radius: 3px; background: var(--bar-old); position: relative; min-width: 2px }
+.bar.new { background: var(--bar-new) }
+.bars .val { font-variant-numeric: tabular-nums; color: var(--muted); font-size: 0.8rem; white-space: nowrap }
+.bars .line { display: flex; align-items: center; gap: 8px; min-width: 0 }
+.bars .cap { color: var(--muted); font-size: 0.78rem }
+@media (max-width: 900px) { .band .wrap { grid-template-columns: minmax(0, 1fr) } }
+
+/* main layout */
+.layout { display: grid; grid-template-columns: 200px minmax(0, 1fr); gap: 48px; padding-block: 48px 72px }
+.toc { position: sticky; top: calc(env(safe-area-inset-top, 0px) + 80px); align-self: start; display: grid; gap: 2px; font-size: 0.9rem }
+.toc a { color: var(--muted); text-decoration: none; padding: 5px 10px; border-left: 2px solid var(--line) }
+.toc a:hover, .toc a.on { color: var(--ink); border-left-color: var(--accent) }
+@media (max-width: 1000px) { .layout { grid-template-columns: minmax(0, 1fr) } .toc { display: none } }
+main { display: grid; gap: 72px; min-width: 0 }
+section { display: grid; gap: 16px; min-width: 0 }
+section > p, section > ul, section > ol, .prose { max-width: 70ch }
+.sub { color: var(--muted) }
+ul, ol { margin: 0; padding-left: 1.3em; display: grid; gap: 6px }
+
+/* code */
+.code { position: relative; min-width: 0 }
+.code pre { margin: 0; background: var(--code-bg); color: var(--code-fg); border-radius: var(--radius); padding: 38px 18px 16px; overflow-x: auto; font: 400 0.82rem/1.65 var(--font-mono); tab-size: 4 }
+.code pre code { background: none; padding: 0; font-size: inherit; overflow-wrap: normal }
+.copy { position: absolute; top: 7px; right: 8px; font: 600 0.72rem var(--font-body); letter-spacing: 0.04em; color: var(--code-fg); background: rgba(255, 255, 255, 0.08); border: 1px solid rgba(255, 255, 255, 0.16); border-radius: 6px; padding: 4px 9px; cursor: pointer }
+.copy:hover { background: rgba(255, 255, 255, 0.16) }
+.cm { color: var(--code-dim) }
+
+/* steps */
+.steps { list-style: none; padding: 0; margin: 0; display: grid; gap: 22px; counter-reset: s }
+.steps > li { display: grid; grid-template-columns: 32px minmax(0, 1fr); gap: 4px 14px; counter-increment: s }
+.steps > li::before { content: counter(s); grid-row: span 3; width: 30px; height: 30px; border-radius: 50%; display: grid; place-items: center; font: 600 0.85rem var(--font-body); background: var(--accent-soft); color: var(--accent) }
+.steps > li > * { grid-column: 2; min-width: 0 }
+.steps h3 { margin: 3px 0 2px; font-size: 1.02rem }
+
+/* path finder */
+.finder { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 22px; display: grid; gap: 18px; min-width: 0 }
+.finder fieldset { border: 0; margin: 0; padding: 0; display: grid; gap: 8px; min-width: 0 }
+.finder legend { font: 600 0.75rem var(--font-body); letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted); margin-bottom: 8px }
+.chips { display: flex; flex-wrap: wrap; gap: 8px }
+.chip { font: 500 0.92rem var(--font-body); padding: 8px 14px; border-radius: 8px; border: 1px solid var(--line); background: var(--bg); color: var(--ink); cursor: pointer }
+.chip[aria-pressed="true"] { border-color: var(--accent); background: var(--accent-soft); color: var(--ink); box-shadow: inset 0 0 0 1px var(--accent) }
+.chip small { color: var(--muted); font-size: 0.78em; margin-left: 4px }
+.status { display: inline-flex; align-items: center; gap: 6px; font: 600 0.78rem var(--font-body); padding: 4px 10px; border-radius: 999px }
+.status.ok { background: var(--ok-soft); color: var(--ok) }
+.status.warn { background: var(--warn-soft); color: var(--warn) }
+.status.plan { background: var(--plan-soft); color: var(--plan) }
+.status::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: currentColor }
+.result { display: grid; gap: 18px; border-top: 1px solid var(--line); padding-top: 18px; min-width: 0 }
+.result-head { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 14px }
+.result-head strong { font: 600 1.05rem var(--font-display) }
+
+/* callouts, tables, tabs */
+.note { border-left: 3px solid var(--warn); background: var(--warn-soft); padding: 12px 16px; border-radius: 0 8px 8px 0; font-size: 0.94rem; max-width: 74ch }
+.note.info { border-left-color: var(--accent); background: var(--accent-soft) }
+.table { overflow-x: auto; border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface) }
+table { border-collapse: collapse; width: 100%; font-size: 0.9rem }
+th, td { text-align: left; padding: 10px 14px; border-bottom: 1px solid var(--line); vertical-align: top }
+th { font: 600 0.75rem var(--font-body); letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); background: var(--bg) }
+tr:last-child td { border-bottom: 0 }
+td.num { font-variant-numeric: tabular-nums; white-space: nowrap }
+.tabs { display: flex; gap: 4px; flex-wrap: wrap; border-bottom: 1px solid var(--line) }
+.tabs button { font: 500 0.9rem var(--font-body); background: none; border: 0; border-bottom: 2px solid transparent; color: var(--muted); padding: 8px 12px; cursor: pointer; margin-bottom: -1px }
+.tabs button[aria-selected="true"] { color: var(--ink); border-bottom-color: var(--accent) }
+.panel { display: grid; gap: 12px; min-width: 0 }
+.two { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 20px }
+@media (max-width: 760px) { .two { grid-template-columns: minmax(0, 1fr) } }
+details { border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); padding: 0 16px }
+details[open] { padding-bottom: 16px }
+summary { cursor: pointer; font-weight: 600; padding: 14px 0; list-style-position: outside }
+details > div { display: grid; gap: 12px; min-width: 0 }
+footer { border-top: 1px solid var(--line); color: var(--muted); font-size: 0.88rem }
+footer .wrap { padding-block: 28px; display: flex; flex-wrap: wrap; gap: 8px 24px; justify-content: space-between }
+@media (prefers-reduced-motion: no-preference) { html { scroll-behavior: smooth } }
+</style>
+<!--/HEAD-->
+</head>
+<body>
+<!--BODY-->
+<header class="top">
+  <div class="wrap">
+    <a class="brand" href="#top" aria-label="QHturbo">
+      <svg viewBox="0 0 32 32" aria-hidden="true"><circle cx="16" cy="16" r="14" fill="none" stroke="currentColor" stroke-width="2.5"/><path d="M16 16 L16 5 A11 11 0 0 1 26.4 19.6 Z" fill="var(--accent)"/><circle cx="16" cy="16" r="2.6" fill="currentColor"/></svg>
+      QHturbo
+    </a>
+    <nav aria-label="Sections">
+      <a href="#start"><span class="en">Get started</span><span class="vi">Bắt đầu</span></a>
+      <a href="#performance">Performance</a>
+      <a href="#examples"><span class="en">Examples</span><span class="vi">Ví dụ</span></a>
+      <a href="#troubleshooting"><span class="en">Troubleshooting</span><span class="vi">Xử lý lỗi</span></a>
+      <a href="https://github.com/qhsvn/QHTurbo">GitHub</a>
+    </nav>
+    <div class="lang" role="group" aria-label="Language">
+      <button type="button" data-lang="en" aria-pressed="true">EN</button>
+      <button type="button" data-lang="vi" aria-pressed="false">VI</button>
+    </div>
+  </div>
+</header>
+
+<div class="hero" id="top">
+  <div class="wrap">
+    <div>
+      <div class="eyebrow"><span class="en">PHP 7.4 – 8.5 · open source</span><span class="vi">PHP 7.4 – 8.5 · mã nguồn mở</span></div>
+      <h1 class="en">Run PHP <em>faster</em>, without touching the PHP you already have.</h1>
+      <h1 class="vi">Chạy PHP <em>nhanh hơn</em>, không đụng tới PHP đang có.</h1>
+      <p class="lede en">QHturbo builds PHP from the official source and installs it beside your current PHP. Keep your code as it is with PHP-FPM, or run it in long-lived workers that boot your framework once instead of on every request.</p>
+      <p class="lede vi">QHturbo build PHP từ mã nguồn chính thức và cài song song với PHP hiện tại. Giữ nguyên code và chạy bằng PHP-FPM, hoặc chạy trong worker lâu dài: framework chỉ khởi động một lần thay vì ở mỗi request.</p>
+      <div class="cta">
+        <a class="btn primary" href="#start"><span class="en">Find your install steps</span><span class="vi">Xem cách cài cho máy bạn</span></a>
+        <a class="btn" href="#examples"><span class="en">See examples</span><span class="vi">Xem ví dụ</span></a>
+      </div>
+    </div>
+    <pre class="term" aria-label="Terminal"><span class="p">$</span> qhturbo-serve /var/www/laravel --framework=laravel --workers=4
+[qhturbo 09:12:01 master pid=4120] listening on <span class="hi">http://127.0.0.1:8080</span>
+  (4 workers, concurrency 1, PHP 8.5.12)
+<span class="p">$</span> wrk -t2 -c32 -d10s http://127.0.0.1:8085/
+Requests/sec:   <span class="ok">1924</span>      <span class="p"># PHP-FPM on the same app: 288</span>
+<span class="p">$</span> systemctl reload qhturbo-php85-worker@shop
+[qhturbo 09:20:44 master pid=4120] reload: done</pre>
+  </div>
+</div>
+
+<div class="band">
+  <div class="wrap">
+    <div class="mode">
+      <h3>Compatible <span class="tag">PHP-FPM · 7.4–8.5</span></h3>
+      <p class="en">A drop-in PHP-FPM with tuned OPcache. WordPress, Laravel, Composer and legacy code run unchanged. Switch one site at a time and switch back in seconds.</p>
+      <p class="vi">PHP-FPM thay thế trực tiếp, OPcache đã tinh chỉnh. WordPress, Laravel, Composer và code cũ chạy nguyên trạng. Chuyển từng site và quay lại trong vài giây.</p>
+    </div>
+    <div class="mode">
+      <h3>Performance <span class="tag">workers · 8.1–8.5</span></h3>
+      <p class="en">Long-lived workers with an event loop, async MySQL/Redis/HTTP and Laravel/Symfony adapters. Your code must follow a few state rules; tools check them for you.</p>
+      <p class="vi">Worker chạy lâu dài, có event loop, MySQL/Redis/HTTP bất đồng bộ và adapter Laravel/Symfony. Code cần tuân theo vài quy tắc về trạng thái; có công cụ kiểm tra giúp bạn.</p>
+    </div>
+    <div class="bars" aria-label="Requests per second">
+      <div class="row"><span class="lbl"><span class="en">Laravel 13</span><span class="vi">Laravel 13</span></span>
+      <div class="line"><div class="bar" style="width:15.0%"></div><span class="val"><span class="en">288 FPM</span><span class="vi">288 FPM</span></span></div>
+      <div class="line"><div class="bar new" style="width:100.0%"></div><span class="val"><span class="en">1,924 workers · 6.7×</span><span class="vi">1.924 worker · 6,7×</span></span></div></div>
+      <div class="row"><span class="lbl"><span class="en">Symfony 8.1</span><span class="vi">Symfony 8.1</span></span>
+      <div class="line"><div class="bar" style="width:15.6%"></div><span class="val"><span class="en">1,737 FPM</span><span class="vi">1.737 FPM</span></span></div>
+      <div class="line"><div class="bar new" style="width:100.0%"></div><span class="val"><span class="en">11,160 workers · 6.3×</span><span class="vi">11.160 worker · 6,3×</span></span></div></div>
+      <div class="row"><span class="lbl"><span class="en">3 MySQL queries</span><span class="vi">3 query MySQL</span></span>
+      <div class="line"><div class="bar" style="width:58.6%"></div><span class="val"><span class="en">1,011 FPM</span><span class="vi">1.011 FPM</span></span></div>
+      <div class="line"><div class="bar new" style="width:100.0%"></div><span class="val"><span class="en">1,724 workers · 1.7×</span><span class="vi">1.724 worker · 1,7×</span></span></div></div>
+      <p class="cap"><span class="en">Requests/s, 4 vCPU cloud VM (±8% noise), PHP 8.5.12. Method and raw data: </span><span class="vi">Request/giây, VM đám mây 4 vCPU (nhiễu ±8%), PHP 8.5.12. Cách đo và dữ liệu gốc: </span><a href="https://github.com/qhsvn/QHTurbo/blob/main/logs/benchmarks.md">logs/benchmarks.md</a></p>
+    </div>
+  </div>
+</div>
+
+<div class="wrap layout">
+  <nav class="toc" aria-label="On this page">
+    <a href="#start"><span class="en">Get started</span><span class="vi">Bắt đầu</span></a>
+    <a href="#install"><span class="en">Build &amp; install</span><span class="vi">Build &amp; cài đặt</span></a>
+    <a href="#compatible">Compatible</a>
+    <a href="#performance">Performance</a>
+    <a href="#rules"><span class="en">State rules</span><span class="vi">Quy tắc trạng thái</span></a>
+    <a href="#examples"><span class="en">Examples</span><span class="vi">Ví dụ</span></a>
+    <a href="#tools"><span class="en">Tools</span><span class="vi">Công cụ</span></a>
+    <a href="#troubleshooting"><span class="en">Troubleshooting</span><span class="vi">Xử lý lỗi</span></a>
+    <a href="#versions"><span class="en">Versions</span><span class="vi">Phiên bản</span></a>
+  </nav>
+
+  <main>
+    <section id="start">
+      <h2 class="en">Get started</h2><h2 class="vi">Bắt đầu</h2>
+      <p class="en">Pick where you run PHP and how. The steps below change to match, with an honest status for each combination.</p>
+      <p class="vi">Chọn nơi bạn chạy PHP và cách chạy. Các bước bên dưới sẽ đổi theo, kèm trạng thái kiểm thử thật của từng lựa chọn.</p>
+      <div class="finder">
+        <fieldset>
+          <legend><span class="en">Your server</span><span class="vi">Máy chủ của bạn</span></legend>
+          <div class="chips" id="platforms"></div>
+        </fieldset>
+        <fieldset>
+          <legend><span class="en">Run mode</span><span class="vi">Chế độ chạy</span></legend>
+          <div class="chips" id="modes"></div>
+        </fieldset>
+        <div class="result" id="result" aria-live="polite"></div>
+      </div>
+    </section>
+
+    <section id="install">
+      <h2 class="en">Build &amp; install</h2><h2 class="vi">Build &amp; cài đặt</h2>
+      <p class="en">QHturbo installs into <code>/opt/qhturbo/&lt;version&gt;</code> with its own PHP-FPM socket and service. It refuses to write into <code>/usr</code>, <code>/etc</code> or aaPanel's PHP, so your current PHP keeps running.</p>
+      <p class="vi">QHturbo cài vào <code>/opt/qhturbo/&lt;phiên bản&gt;</code>, có socket PHP-FPM và service riêng. Script từ chối ghi vào <code>/usr</code>, <code>/etc</code> hay PHP của aaPanel, nên PHP hiện tại vẫn chạy bình thường.</p>
+      <div class="table"><table>
+        <thead><tr><th><span class="en">Requirement</span><span class="vi">Yêu cầu</span></th><th><span class="en">Notes</span><span class="vi">Ghi chú</span></th></tr></thead>
+        <tbody>
+          <tr><td>Ubuntu 20.04–24.04, Debian 11–12</td><td><span class="en">Tested on Ubuntu 24.04. AlmaLinux / Rocky (common with cPanel and DirectAdmin) are not tested yet.</span><span class="vi">Đã test trên Ubuntu 24.04. AlmaLinux / Rocky (hay dùng với cPanel, DirectAdmin) chưa được test.</span></td></tr>
+          <tr><td><span class="en">2 GB RAM or swap, 4 GB disk</span><span class="vi">RAM 2 GB hoặc swap, đĩa 4 GB</span></td><td><span class="en">Compiling PHP needs memory; the finished install is about 60 MB.</span><span class="vi">Biên dịch PHP tốn RAM; bản cài xong khoảng 60 MB.</span></td></tr>
+          <tr><td>Windows</td><td><span class="en">Use WSL2 (<code>wsl --install -d Ubuntu</code>) and build inside the Linux file system.</span><span class="vi">Dùng WSL2 (<code>wsl --install -d Ubuntu</code>) và build trong hệ thống file Linux.</span></td></tr>
+        </tbody>
+      </table></div>
+      <ol class="steps">
+        <li><h3 class="en">Build and install</h3><h3 class="vi">Build và cài đặt</h3>
+          <p class="sub en"><code>--user</code> must be the user your web server runs as: <code>www-data</code> on Debian/Ubuntu, <code>www</code> on aaPanel.</p>
+          <p class="sub vi"><code>--user</code> phải là user mà web server đang chạy: <code>www-data</code> trên Debian/Ubuntu, <code>www</code> trên aaPanel.</p>
+          <div class="code"><pre><code>sudo apt update &amp;&amp; sudo apt install -y git build-essential autoconf bison re2c pkg-config python3 \
+  libxml2-dev libssl-dev libsqlite3-dev zlib1g-dev libcurl4-openssl-dev libzip-dev \
+  libonig-dev libicu-dev libsodium-dev libpng-dev libjpeg-dev libfreetype-dev libgmp-dev libreadline-dev
+git clone https://github.com/qhsvn/QHTurbo.git &amp;&amp; cd QHTurbo
+export QHT_LAB=~/QHTurbo-lab QHT_PHP=8.5     # any of 7.4 8.0 8.1 8.2 8.3 8.4 8.5
+scripts/bootstrap.sh                          # download php-src, verify the tag
+QHT_PROFILE=full scripts/build.sh baseline    # PHP + PHP-FPM, 10-40 minutes
+sudo -E scripts/install.sh --user=www-data --group=www-data   # -&gt; /opt/qhturbo/8.5</code></pre></div>
+          <p class="sub en">PHP 7.4 and 8.0 need a private OpenSSL 1.1 (the system OpenSSL is not touched):</p>
+          <p class="sub vi">PHP 7.4 và 8.0 cần OpenSSL 1.1 riêng (không đụng OpenSSL của hệ thống):</p>
+          <div class="code"><pre><code>scripts/deps-openssl11.sh      # PHP 7.4 / 8.0 only, before build.sh</code></pre></div></li>
+        <li><h3 class="en">Start PHP-FPM and check the install</h3><h3 class="vi">Chạy PHP-FPM và kiểm tra bản cài</h3>
+          <div class="code"><pre><code>sudo cp /opt/qhturbo/8.5/share/qhturbo/systemd/qhturbo-php85-fpm.service /etc/systemd/system/
+sudo systemctl daemon-reload &amp;&amp; sudo systemctl enable --now qhturbo-php85-fpm
+/opt/qhturbo/8.5/bin/php /opt/qhturbo/8.5/share/qhturbo/qht-doctor.php    # health check</code></pre></div></li>
+        <li><h3 class="en">Connect a site</h3><h3 class="vi">Nối một site</h3>
+          <p class="en">Follow <a href="#compatible">Compatible</a> to serve PHP files through the new PHP-FPM, or <a href="#performance">Performance</a> to run workers.</p>
+          <p class="vi">Làm theo phần <a href="#compatible">Compatible</a> để chạy file PHP qua PHP-FPM mới, hoặc <a href="#performance">Performance</a> để chạy worker.</p></li>
+      </ol>
+    </section>
+
+    <section id="compatible">
+      <h2>Compatible</h2>
+      <p class="en">Point one site at the QHturbo socket <code>/run/qhturbo/php85-fpm.sock</code> (the number follows the version: <code>php74</code> … <code>php85</code>). Every other site keeps its current PHP. To go back, restore the old line and reload the web server.</p>
+      <p class="vi">Trỏ một site vào socket của QHturbo <code>/run/qhturbo/php85-fpm.sock</code> (số theo phiên bản: <code>php74</code> … <code>php85</code>). Các site khác giữ nguyên PHP hiện tại. Muốn quay lại, khôi phục dòng cũ rồi reload web server.</p>
+      <div class="two">
+        <div class="panel"><h3>Nginx</h3><div class="code"><pre><code># inside the site's server { } block, instead of the old fastcgi_pass
+location ~ \.php$ {
+    try_files $uri =404;
+    fastcgi_pass unix:/run/qhturbo/php85-fpm.sock;
+    fastcgi_index index.php;
+    include fastcgi_params;
+    fastcgi_param SCRIPT_FILENAME $document_root$fastcgi_script_name;
+}</code></pre></div><div class="code"><pre><code>sudo nginx -t &amp;&amp; sudo systemctl reload nginx
+curl -sI http://your-site.example/ | head -1     # expect 200; on errors restore the old block</code></pre></div></div>
+        <div class="panel"><h3>Apache 2.4</h3><div class="code"><pre><code>sudo a2enmod proxy proxy_fcgi setenvif
+# in the site's &lt;VirtualHost&gt;, or in its .htaccess (needs AllowOverride FileInfo):
+&lt;FilesMatch \.php$&gt;
+    SetHandler "proxy:unix:/run/qhturbo/php85-fpm.sock|fcgi://localhost"
+&lt;/FilesMatch&gt;</code></pre></div><div class="code"><pre><code>sudo apachectl configtest &amp;&amp; sudo systemctl reload apache2
+echo '&lt;?php echo PHP_VERSION, " ", PHP_SAPI;' | sudo tee /var/www/your-site/qht-check.php
+curl -s http://your-site.example/qht-check.php    # "8.5.x fpm-fcgi" -&gt; it runs on QHturbo; delete the file afterwards</code></pre></div></div>
+      </div>
+      <p class="note info en">Both were tested on 2026-10-22: Apache 2.4.58 with <code>proxy_fcgi</code> and nginx, on Ubuntu 24.04. If Apache still shows the old PHP version, that server uses <code>mod_php</code>; the site must use PHP-FPM first.</p>
+      <p class="note info vi">Cả hai đã được test ngày 2026-10-22: Apache 2.4.58 với <code>proxy_fcgi</code> và nginx, trên Ubuntu 24.04. Nếu Apache vẫn hiện phiên bản PHP cũ, máy chủ đó đang dùng <code>mod_php</code>; site phải chuyển sang PHP-FPM trước.</p>
+      <h3 class="en">What changes compared with stock PHP-FPM</h3><h3 class="vi">Khác gì so với PHP-FPM mặc định</h3>
+      <ul class="en">
+        <li>OPcache on with sizes for Composer projects (256 MB, 50,000 files). File changes are still picked up within 2 seconds, so FTP edits and WordPress updates work as before.</li>
+        <li>JIT off by default. Turn it on only after measuring your own application.</li>
+        <li>FPM children recycle after 1,000 requests to contain leaks in old code; slowlog and status pages are on.</li>
+      </ul>
+      <ul class="vi">
+        <li>OPcache bật sẵn với dung lượng hợp cho dự án Composer (256 MB, 50.000 file). File sửa vẫn được nhận trong vòng 2 giây, nên sửa qua FTP và cập nhật WordPress vẫn như cũ.</li>
+        <li>JIT tắt mặc định. Chỉ bật sau khi đã đo bằng ứng dụng của bạn.</li>
+        <li>Tiến trình FPM được làm mới sau 1.000 request để chặn rò rỉ từ code cũ; có slowlog và trang trạng thái.</li>
+      </ul>
+    </section>
+
+    <section id="performance">
+      <h2>Performance</h2>
+      <p class="en">Your application boots once per worker process and then serves requests from memory. A front web server (nginx or Apache) handles TLS, HTTP/2 and static files and forwards the rest to the workers. Requires PHP 8.1 or newer.</p>
+      <p class="vi">Ứng dụng khởi động một lần cho mỗi tiến trình worker, sau đó phục vụ request ngay từ bộ nhớ. Web server phía trước (nginx hoặc Apache) lo TLS, HTTP/2 và file tĩnh, phần còn lại chuyển cho worker. Cần PHP 8.1 trở lên.</p>
+      <ol class="steps">
+        <li><h3 class="en">Try it in a terminal</h3><h3 class="vi">Chạy thử trong terminal</h3>
+          <p class="en">Save the <a href="#examples">JSON API example</a> as <code>app.php</code>, then:</p>
+          <p class="vi">Lưu <a href="#examples">ví dụ JSON API</a> thành <code>app.php</code>, rồi:</p>
+          <div class="code"><pre><code>/opt/qhturbo/8.5/bin/php /opt/qhturbo/8.5/share/qhturbo-runtime/bin/qhturbo-serve \
+    app.php --port=8080 --strict-state --debug</code></pre></div></li>
+        <li><h3 class="en">Run it as a service</h3><h3 class="vi">Chạy thành service</h3>
+          <div class="code"><pre><code>sudo mkdir -p /etc/qhturbo
+sudo tee /etc/qhturbo/worker-myapp.env &gt; /dev/null &lt;&lt;'EOF'
+QHT_APP=/var/www/myapp/app.php
+QHT_HOST=127.0.0.1
+QHT_PORT=8080
+QHT_WORKERS=4
+QHT_CONCURRENCY=1
+QHT_MAX_REQUESTS=10000
+QHT_MEMORY_LIMIT=256M
+QHT_EXTRA_ARGS=
+EOF
+sudo cp /opt/qhturbo/8.5/share/qhturbo/systemd/qhturbo-php85-worker@.service /etc/systemd/system/
+sudo systemctl daemon-reload &amp;&amp; sudo systemctl enable --now qhturbo-php85-worker@myapp
+curl http://127.0.0.1:8080/</code></pre></div>
+          <div class="code"><pre><code># Laravel or Symfony: point QHT_APP at the project and name the framework
+QHT_APP=/var/www/laravel
+QHT_EXTRA_ARGS=--framework=laravel        # or --framework=symfony</code></pre></div></li>
+        <li><h3 class="en">Put a web server in front</h3><h3 class="vi">Đặt web server phía trước</h3>
+          <div class="two"><div class="panel"><h3>Nginx</h3><div class="code"><pre><code>upstream qhturbo_myapp { server 127.0.0.1:8080; keepalive 64; }
+
+server {
+    server_name app.example.com;
+    root /var/www/myapp/public;               # static files stay with nginx
+
+    location / { try_files $uri @app; }
+    location @app {
+        proxy_http_version 1.1;
+        proxy_set_header Connection "";
+        proxy_set_header Host $host;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_pass http://qhturbo_myapp;
+    }
+}</code></pre></div></div><div class="panel"><h3>Apache 2.4</h3><div class="code"><pre><code>sudo a2enmod proxy proxy_http
+&lt;VirtualHost *:80&gt;
+    ServerName app.example.com
+    ProxyPreserveHost On
+    ProxyPass        / http://127.0.0.1:8080/ keepalive=On
+    ProxyPassReverse / http://127.0.0.1:8080/
+&lt;/VirtualHost&gt;</code></pre></div></div></div></li>
+        <li><h3 class="en">Deploy new code</h3><h3 class="vi">Deploy code mới</h3>
+          <p class="en">Workers are replaced one by one. An old worker stops only after its replacement has booted, so a deploy with a syntax error leaves the old code serving and logs <code>reload aborted</code>.</p>
+          <p class="vi">Worker được thay lần lượt. Worker cũ chỉ dừng khi worker mới đã khởi động xong, nên deploy có lỗi cú pháp thì code cũ vẫn chạy và log ghi <code>reload aborted</code>.</p>
+          <div class="code"><pre><code>sudo systemctl reload qhturbo-php85-worker@myapp   # rolling restart, no dropped requests
+journalctl -u qhturbo-php85-worker@myapp -n 50       # "reload: done" or "reload aborted"</code></pre></div></li>
+      </ol>
+      <h3 class="en">Options</h3><h3 class="vi">Tuỳ chọn</h3>
+      <div class="table"><table>
+        <thead><tr><th><span class="en">Option</span><span class="vi">Tuỳ chọn</span></th><th><span class="en">Default</span><span class="vi">Mặc định</span></th><th><span class="en">What it does</span><span class="vi">Tác dụng</span></th></tr></thead>
+        <tbody>
+          <tr><td><code>--workers=N</code></td><td class="num">0</td><td><span class="en">Worker processes, about one per CPU core. 0 = one process, no automatic restart.</span><span class="vi">Số tiến trình worker, khoảng một tiến trình mỗi nhân CPU. 0 = một tiến trình, không tự khởi động lại.</span></td></tr>
+          <tr><td><code>--concurrency=C</code></td><td class="num">1</td><td><span class="en">Requests in flight per worker. 1 is safe for any code; raise it only when the I/O is async.</span><span class="vi">Số request chạy xen kẽ trong một worker. 1 an toàn với mọi code; chỉ tăng khi I/O đã là async.</span></td></tr>
+          <tr><td><code>--max-requests=N</code></td><td class="num">10000</td><td><span class="en">Replace a worker after N requests (contains slow leaks).</span><span class="vi">Thay worker sau N request (chặn rò rỉ dần).</span></td></tr>
+          <tr><td><code>--memory-limit=256M</code></td><td class="num">256M</td><td><span class="en">Replace a worker above this memory use.</span><span class="vi">Thay worker khi dùng RAM vượt mức này.</span></td></tr>
+          <tr><td><code>--framework=laravel|symfony</code></td><td class="num">—</td><td><span class="en">Run a Laravel or Symfony project directory unchanged.</span><span class="vi">Chạy nguyên thư mục dự án Laravel hoặc Symfony.</span></td></tr>
+          <tr><td><code>--superglobals</code></td><td class="num">off</td><td><span class="en">Fill <code>$_GET</code>, <code>$_POST</code>, <code>$_SERVER</code>, <code>$_FILES</code> for older code.</span><span class="vi">Điền <code>$_GET</code>, <code>$_POST</code>, <code>$_SERVER</code>, <code>$_FILES</code> cho code cũ.</span></td></tr>
+          <tr><td><code>--strict-state</code></td><td class="num">off</td><td><span class="en">Answer 500 and log when a request leaks state. Use it on staging.</span><span class="vi">Trả 500 và ghi log khi request làm rò trạng thái. Dùng trên staging.</span></td></tr>
+          <tr><td><code>--max-body=8M</code></td><td class="num">8M</td><td><span class="en">Largest request body, uploads included.</span><span class="vi">Kích thước body tối đa, kể cả upload.</span></td></tr>
+          <tr><td><code>--max-connections=N</code></td><td class="num">512</td><td><span class="en">Open connections per worker (at most 1000).</span><span class="vi">Số kết nối mở mỗi worker (tối đa 1000).</span></td></tr>
+        </tbody>
+      </table></div>
+    </section>
+
+    <section id="rules">
+      <h2 class="en">State rules for workers</h2><h2 class="vi">Quy tắc trạng thái cho worker</h2>
+      <p class="en">With PHP-FPM everything is thrown away after each request. A worker keeps running, so anything left behind reaches the next request, possibly another user's. The runtime enforces or reports most of these rules.</p>
+      <p class="vi">Với PHP-FPM, mọi thứ bị xoá sau mỗi request. Worker thì chạy tiếp, nên thứ gì còn sót lại sẽ sang request sau, có thể của người dùng khác. Runtime tự xử lý hoặc báo lỗi cho phần lớn các quy tắc này.</p>
+      <div class="table"><table>
+        <thead><tr><th><span class="en">Rule</span><span class="vi">Quy tắc</span></th><th><span class="en">What the runtime does</span><span class="vi">Runtime làm gì</span></th></tr></thead>
+        <tbody>
+          <tr><td><span class="en">Keep request data out of globals and static properties</span><span class="vi">Không để dữ liệu request trong biến global hay static property</span></td><td><span class="en">New globals are removed and logged; static properties that keep growing are reported.</span><span class="vi">Biến global mới bị xoá và ghi log; static property cứ lớn dần thì bị báo.</span></td></tr>
+          <tr><td><span class="en">Services with per-request data implement <code>ResetInterface</code></span><span class="vi">Service giữ dữ liệu theo request phải implement <code>ResetInterface</code></span></td><td><span class="en"><code>reset()</code> runs after every request.</span><span class="vi"><code>reset()</code> chạy sau mỗi request.</span></td></tr>
+          <tr><td><span class="en">No <code>exit()</code> / <code>die()</code>; return a response</span><span class="vi">Không <code>exit()</code> / <code>die()</code>; hãy trả response</span></td><td><span class="en">The worker is restarted, but that request fails.</span><span class="vi">Worker được khởi động lại, nhưng request đó bị lỗi.</span></td></tr>
+          <tr><td><span class="en">Set headers and cookies on the Response, not with <code>header()</code> / <code>echo</code></span><span class="vi">Đặt header, cookie trên Response, không dùng <code>header()</code> / <code>echo</code></span></td><td><span class="en"><code>qht-doctor --scan</code> lists the places to change.</span><span class="vi"><code>qht-doctor --scan</code> liệt kê các chỗ cần sửa.</span></td></tr>
+          <tr><td><span class="en">Do not change ini settings, timezone or locale per request</span><span class="vi">Không đổi ini, timezone, locale theo request</span></td><td><span class="en">Changed ini settings are restored.</span><span class="vi">ini bị đổi được khôi phục.</span></td></tr>
+          <tr><td><span class="en">Never leave a database transaction open</span><span class="vi">Không để transaction mở sau request</span></td><td><span class="en">The MySQL client and the Laravel adapter roll it back and log it.</span><span class="vi">Client MySQL và adapter Laravel tự rollback và ghi log.</span></td></tr>
+          <tr><td><span class="en">With <code>--concurrency</code> above 1, use only async I/O</span><span class="vi">Với <code>--concurrency</code> lớn hơn 1, chỉ dùng I/O async</span></td><td><span class="en">PDO, <code>file_get_contents()</code> on URLs and <code>sleep()</code> block the whole worker.</span><span class="vi">PDO, <code>file_get_contents()</code> với URL và <code>sleep()</code> chặn cả worker.</span></td></tr>
+        </tbody>
+      </table></div>
+      <p class="en">WordPress and code that relies on <code>exit()</code> or globals belong in Compatible mode.</p>
+      <p class="vi">WordPress và code dựa vào <code>exit()</code> hoặc biến global nên dùng chế độ Compatible.</p>
+    </section>
+
+    <section id="examples">
+      <h2 class="en">Examples</h2><h2 class="vi">Ví dụ</h2>
+      <p class="en">Each example is a complete <code>app.php</code> for <code>qhturbo-serve</code>. The API, MySQL, Redis, transaction and reset examples were run against PHP 8.5.12, MySQL and Redis before publishing.</p>
+      <p class="vi">Mỗi ví dụ là một <code>app.php</code> hoàn chỉnh cho <code>qhturbo-serve</code>. Các ví dụ API, MySQL, Redis, transaction và reset đã được chạy thử với PHP 8.5.12, MySQL và Redis trước khi đăng.</p>
+      <div class="tabs" role="tablist" id="extabs"></div>
+      <div id="expanels"><div class="panel" id="ex-api" data-tab="&lt;span class=&quot;en&quot;&gt;JSON API&lt;/span&gt;&lt;span class=&quot;vi&quot;&gt;JSON API&lt;/span&gt;"><p class="en">The smallest useful app: routes, JSON responses, a 404. Data loaded above <code>return</code> is shared by every request.</p><p class="vi">Ứng dụng nhỏ nhất có ích: route, response JSON, trang 404. Dữ liệu nạp phía trên <code>return</code> được dùng chung cho mọi request.</p><div class="code"><pre><code>&lt;?php
+// app.php: everything above `return` runs ONCE per worker.
+use QHTurbo\Runtime\Http\{Request, Response};
+
+$products = [1 =&gt; 'Coffee', 2 =&gt; 'Tea'];   // loaded once, reused by every request
+
+return function (Request $request) use ($products): Response|array {
+    return match ($request-&gt;path()) {
+        '/' =&gt; Response::text("Hello from QHturbo\n"),
+        '/products' =&gt; ['items' =&gt; $products],            // arrays become JSON
+        '/echo' =&gt; ['method' =&gt; $request-&gt;method, 'body' =&gt; $request-&gt;parsedBody()],
+        default =&gt; Response::json(['error' =&gt; 'Not found'], 404),
+    };
+};</code></pre></div></div>
+<div class="panel" id="ex-db" data-tab="&lt;span class=&quot;en&quot;&gt;MySQL + Redis&lt;/span&gt;&lt;span class=&quot;vi&quot;&gt;MySQL + Redis&lt;/span&gt;"><p class="en">Non-blocking MySQL and Redis with connection pools. <code>?</code> placeholders are escaped; arrays expand for <code>IN (?)</code>. Outside a worker the same calls simply block.</p><p class="vi">MySQL và Redis không chặn, có pool kết nối. Tham số <code>?</code> được escape; mảng tự mở rộng cho <code>IN (?)</code>. Ngoài worker, các lệnh này chạy kiểu chặn bình thường.</p><div class="code"><pre><code>&lt;?php
+use QHTurbo\Runtime\Http\Request;
+use QHTurbo\Runtime\Mysql\Client as Mysql;
+use QHTurbo\Runtime\Redis\Client as Redis;
+use function QHTurbo\Runtime\Async\{all, async};
+
+// Connection pools: created once per worker.
+$db    = new Mysql('mysql://app:secret@127.0.0.1:3306/shop?pool=16');
+$redis = new Redis('redis://127.0.0.1:6379/0', poolSize: 16);
+
+return function (Request $r) use ($db, $redis): array {
+    if (($cached = $redis-&gt;get('dashboard')) !== null) {
+        return json_decode($cached, true);
+    }
+    // Both queries run at the same time on two pooled connections.
+    [$users, $orders] = all([
+        async(fn () =&gt; $db-&gt;query('SELECT id, name FROM users WHERE id IN (?)', [[1, 2, 3]])-&gt;rows),
+        async(fn () =&gt; $db-&gt;query('SELECT COUNT(*) FROM orders WHERE created_at &gt; ?', [new DateTime('-1 day')])-&gt;value()),
+    ]);
+    $data = ['users' =&gt; $users, 'orders_today' =&gt; $orders];
+    $redis-&gt;set('dashboard', json_encode($data), 'EX', 30);
+    return $data;
+};</code></pre></div></div>
+<div class="panel" id="ex-tx" data-tab="&lt;span class=&quot;en&quot;&gt;Transactions&lt;/span&gt;&lt;span class=&quot;vi&quot;&gt;Transaction&lt;/span&gt;"><p class="en">A transaction left open is rolled back automatically when the connection goes back to the pool, so one request can never leak it into the next.</p><p class="vi">Transaction còn mở sẽ được rollback tự động khi kết nối trả về pool, nên một request không thể để nó rò sang request sau.</p><div class="code"><pre><code>&lt;?php
+use QHTurbo\Runtime\Http\Request;
+use QHTurbo\Runtime\Mysql\{Client, Connection};
+
+$db = new Client('mysql://app:secret@127.0.0.1:3306/shop');
+
+return function (Request $r) use ($db): array {
+    // COMMIT when the function returns, ROLLBACK when it throws.
+    $db-&gt;transaction(function (Connection $tx) {
+        $tx-&gt;query('UPDATE accounts SET balance = balance - ? WHERE id = ?', [10, 1]);
+        $tx-&gt;query('UPDATE accounts SET balance = balance + ? WHERE id = ?', [10, 2]);
+    });
+    return $db-&gt;query('SELECT id, balance FROM accounts ORDER BY id')-&gt;rows;
+};</code></pre></div></div>
+<div class="panel" id="ex-fanout" data-tab="&lt;span class=&quot;en&quot;&gt;Parallel HTTP calls&lt;/span&gt;&lt;span class=&quot;vi&quot;&gt;Gọi HTTP song song&lt;/span&gt;"><p class="en">Call several internal services at once. Start the worker with <code>--concurrency=64</code> so it serves other requests while it waits.</p><p class="vi">Gọi nhiều dịch vụ nội bộ cùng lúc. Chạy worker với <code>--concurrency=64</code> để nó phục vụ request khác trong lúc chờ.</p><div class="code"><pre><code>&lt;?php
+// Three internal services called at the same time: the request takes
+// as long as the slowest call, not the sum. Run with --concurrency=64.
+use QHTurbo\Runtime\Http\{Client, Request};
+use function QHTurbo\Runtime\Async\{all, async, timeout};
+
+return function (Request $request): array {
+    $results = all([
+        'users'  =&gt; timeout(async(fn () =&gt; Client::get('http://users.internal/api')), 1.0),
+        'orders' =&gt; timeout(async(fn () =&gt; Client::get('http://orders.internal/api')), 1.0),
+        'stats'  =&gt; timeout(async(fn () =&gt; Client::get('http://stats.internal/api')), 1.0),
+    ]);
+    return array_map(fn ($r) =&gt; json_decode($r['body'], true), $results);
+};</code></pre></div></div>
+<div class="panel" id="ex-reset" data-tab="&lt;span class=&quot;en&quot;&gt;Per-request services&lt;/span&gt;&lt;span class=&quot;vi&quot;&gt;Service theo request&lt;/span&gt;"><p class="en">Return an object with <code>handle()</code>; if it implements <code>ResetInterface</code>, the worker calls <code>reset()</code> after every request.</p><p class="vi">Trả về object có <code>handle()</code>; nếu object implement <code>ResetInterface</code>, worker gọi <code>reset()</code> sau mỗi request.</p><div class="code"><pre><code>&lt;?php
+use QHTurbo\Runtime\Http\{Request, Response};
+use QHTurbo\Runtime\State\ResetInterface;
+
+// A service that holds per-request data must forget it after each request,
+// or the next visitor would see it.
+final class CurrentUser implements ResetInterface
+{
+    public ?string $name = null;
+    public function reset(): void { $this-&gt;name = null; }
+}
+
+final class App implements ResetInterface
+{
+    public function __construct(private CurrentUser $user) {}
+
+    public function handle(Request $r): Response
+    {
+        $this-&gt;user-&gt;name ??= $r-&gt;query['user'] ?? null;
+        return Response::text('Hello ' . ($this-&gt;user-&gt;name ?? 'guest') . "\n");
+    }
+
+    public function reset(): void { $this-&gt;user-&gt;reset(); }   // called after every request
+}
+
+return new App(new CurrentUser());</code></pre></div></div>
+<div class="panel" id="ex-fw" data-tab="&lt;span class=&quot;en&quot;&gt;Laravel &amp;amp; Symfony&lt;/span&gt;&lt;span class=&quot;vi&quot;&gt;Laravel &amp;amp; Symfony&lt;/span&gt;"><p class="en">Tested with Laravel 13 and Symfony 8.1. After every request the Laravel adapter resets auth, session, cookies, config, locale and open transactions; Symfony resets its <code>kernel.reset</code> services.</p><p class="vi">Đã test với Laravel 13 và Symfony 8.1. Sau mỗi request, adapter Laravel reset auth, session, cookie, config, locale và transaction đang mở; Symfony reset các service <code>kernel.reset</code>.</p><div class="code"><pre><code># No code changes. The framework boots once per worker.
+qhturbo-serve /var/www/laravel --framework=laravel --workers=4 --max-requests=5000
+qhturbo-serve /var/www/symfony --framework=symfony --workers=4
+
+# Recommended: sessions and cache in Redis or files (not "array"),
+# php artisan optimize (Laravel) / cache:warmup (Symfony), trusted proxies.</code></pre></div></div>
+<div class="panel" id="ex-legacy" data-tab="&lt;span class=&quot;en&quot;&gt;Older code&lt;/span&gt;&lt;span class=&quot;vi&quot;&gt;Code cũ&lt;/span&gt;"><p class="en">A first step for code that reads superglobals. Fix what <code>--strict-state</code> reports, then move to the <code>Request</code> object.</p><p class="vi">Bước đầu cho code đọc superglobals. Sửa những gì <code>--strict-state</code> báo, rồi chuyển sang dùng object <code>Request</code>.</p><div class="code"><pre><code># Older code that reads $_GET/$_POST/$_SERVER: fill superglobals per request
+# (one request at a time per worker), and report state leaks loudly on staging.
+qhturbo-serve legacy-front-controller.php --workers=4 --concurrency=1 \
+    --superglobals --strict-state</code></pre></div></div></div>
+    </section>
+
+    <section id="tools">
+      <h2 class="en">Tools</h2><h2 class="vi">Công cụ</h2>
+      <div class="panel"><h3>qht-doctor</h3>
+        <p class="en">Checks the PHP install and scans code for patterns that break in a long-lived worker.</p>
+        <p class="vi">Kiểm tra bản cài PHP và quét code tìm những chỗ sẽ lỗi khi chạy trong worker lâu dài.</p><div class="code"><pre><code># Check the PHP install (OPcache, Xdebug, EOL, extensions)
+/opt/qhturbo/8.5/bin/php /opt/qhturbo/8.5/share/qhturbo/qht-doctor.php
+# Scan an application for code that is risky in a long-lived worker
+/opt/qhturbo/8.5/bin/php /opt/qhturbo/8.5/share/qhturbo/qht-doctor.php --scan=/var/www/myapp</code></pre></div></div>
+      <div class="panel"><h3>fpm-tune</h3>
+        <p class="en">Suggests <code>pm.max_children</code> from your RAM and the real memory use of FPM workers, so the server does not swap.</p>
+        <p class="vi">Gợi ý <code>pm.max_children</code> từ RAM và mức RAM thực tế của từng tiến trình FPM, để máy không bị swap.</p><div class="code"><pre><code>python3 /opt/qhturbo/8.5/share/qhturbo/fpm-tune.py          # measures running FPM workers
+python3 /opt/qhturbo/8.5/share/qhturbo/fpm-tune.py --worker-rss 60   # or assume 60 MiB each</code></pre></div></div>
+      <div class="panel"><h3>install-ext</h3>
+        <p class="en">Installs PECL extensions (redis, imagick, apcu…) for a QHturbo PHP, falling back to GitHub releases when PECL is unreachable. Run it from the repository folder.</p>
+        <p class="vi">Cài extension PECL (redis, imagick, apcu…) cho PHP của QHturbo, tự lấy từ GitHub khi không vào được PECL. Chạy trong thư mục repo.</p><div class="code"><pre><code>sudo scripts/install-ext.sh redis --php=8.5
+sudo scripts/install-ext.sh imagick --php=8.5 --version=3.7.0</code></pre></div></div>
+    </section>
+
+    <section id="troubleshooting">
+      <h2 class="en">Troubleshooting</h2><h2 class="vi">Xử lý lỗi</h2>
+      <details><summary><span class="en">502 Bad Gateway or 503 after switching a site</span><span class="vi">502 Bad Gateway hoặc 503 sau khi chuyển site</span></summary><div>
+        <p class="en">Usually the web server user cannot open the PHP-FPM socket, which is readable only by the user given to <code>install.sh --user</code>. Compare the two, then reinstall with the right user, or restore the old configuration line.</p>
+        <p class="vi">Thường là do user của web server không mở được socket PHP-FPM, vì socket chỉ cho user đã truyền vào <code>install.sh --user</code>. So sánh hai user, rồi cài lại với user đúng, hoặc khôi phục dòng cấu hình cũ.</p><div class="code"><pre><code># Is the web server user allowed to open the socket?
+ls -l /run/qhturbo/php85-fpm.sock          # owner/group, mode 0660
+ps -o user= -C nginx -C apache2 -C httpd | sort -u
+# Reinstall with the web server's user (www-data on Debian/Ubuntu, apache on AlmaLinux, www on aaPanel)
+sudo -E scripts/install.sh --user=www-data --group=www-data</code></pre></div></div></details>
+      <details><summary><span class="en">"--workers needs pcntl_fork …"</span><span class="vi">"--workers needs pcntl_fork …"</span></summary><div>
+        <p class="en">Your php.ini blocks <code>pcntl_*</code> in <code>disable_functions</code> (aaPanel and many panels do this). Load the Performance ini, which allows only the functions workers need.</p>
+        <p class="vi">php.ini đang chặn <code>pcntl_*</code> trong <code>disable_functions</code> (aaPanel và nhiều panel làm vậy). Hãy nạp ini của chế độ Performance, ini này chỉ mở đúng các hàm worker cần.</p><div class="code"><pre><code># Workers need the Performance ini, which re-allows pcntl_fork &amp; co:
+PHP_INI_SCAN_DIR=/opt/qhturbo/8.5/etc/conf.d:/opt/qhturbo/8.5/etc/performance.d \
+    /opt/qhturbo/8.5/bin/php /opt/qhturbo/8.5/share/qhturbo-runtime/bin/qhturbo-serve app.php --workers=4
+# (the systemd unit qhturbo-php85-worker@.service already sets this)</code></pre></div></div></details>
+      <details><summary><span class="en">Uploads fail in a worker with move_uploaded_file()</span><span class="vi">Upload lỗi trong worker khi dùng move_uploaded_file()</span></summary><div>
+        <p class="en"><code>move_uploaded_file()</code> and <code>is_uploaded_file()</code> only accept files created by PHP-FPM's own upload handling. Laravel and Symfony <code>UploadedFile</code> objects work; plain PHP code should use <code>rename()</code>.</p>
+        <p class="vi"><code>move_uploaded_file()</code> và <code>is_uploaded_file()</code> chỉ nhận file do PHP-FPM tạo khi upload. <code>UploadedFile</code> của Laravel và Symfony vẫn chạy; code PHP thuần nên dùng <code>rename()</code>.</p><div class="code"><pre><code>// move_uploaded_file() only works under PHP-FPM. In a worker:
+$file = $request-&gt;uploadedFiles()['photo'];
+rename($file['tmp_name'], '/var/www/uploads/' . basename($file['name']));</code></pre></div></div></details>
+      <details><summary><span class="en">A worker restarts after every request</span><span class="vi">Worker khởi động lại sau mỗi request</span></summary><div>
+        <p class="en">Check <code>--memory-limit</code>: it must be larger than what your framework uses after booting (Laravel often needs 60–100 MB). The log line <code>draining (memory … over limit)</code> confirms it.</p>
+        <p class="vi">Kiểm tra <code>--memory-limit</code>: phải lớn hơn mức RAM framework dùng sau khi khởi động (Laravel thường cần 60–100 MB). Dòng log <code>draining (memory … over limit)</code> xác nhận điều này.</p></div></details>
+      <details><summary><span class="en">Large downloads use a lot of worker memory</span><span class="vi">Tải file lớn làm worker tốn nhiều RAM</span></summary><div>
+        <p class="en">Responses are built in memory before sending, including streamed and file responses. Let the front web server send big files (static files or <code>X-Accel-Redirect</code>).</p>
+        <p class="vi">Response được dựng hết trong RAM trước khi gửi, kể cả response dạng stream và file. Hãy để web server phía trước gửi file lớn (file tĩnh hoặc <code>X-Accel-Redirect</code>).</p></div></details>
+      <details><summary><span class="en">DirectAdmin, cPanel, LiteSpeed, Plesk?</span><span class="vi">DirectAdmin, cPanel, LiteSpeed, Plesk?</span></summary><div>
+        <p class="en">Not automated yet. These panels give each hosting account its own Linux user, and a safe setup needs one PHP-FPM pool per account. That support, and builds for AlmaLinux/Rocky, are the next items on the roadmap. Please open an issue with your panel and OS so it can be tested on real servers.</p>
+        <p class="vi">Chưa có tự động. Các panel này cấp cho mỗi tài khoản hosting một user Linux riêng, và cách chạy an toàn cần một pool PHP-FPM cho mỗi tài khoản. Phần hỗ trợ này cùng bản build cho AlmaLinux/Rocky là các việc tiếp theo trong lộ trình. Hãy mở issue ghi panel và hệ điều hành của bạn để có thể test trên server thật.</p>
+        <p><a href="https://github.com/qhsvn/QHTurbo/issues">github.com/qhsvn/QHTurbo/issues</a></p></div></details>
+    </section>
+
+    <section id="versions">
+      <h2 class="en">Versions</h2><h2 class="vi">Phiên bản</h2>
+      <div class="table"><table>
+        <thead><tr><th>PHP</th><th><span class="en">Upstream tag</span><span class="vi">Tag gốc</span></th><th><span class="en">Upstream support</span><span class="vi">Hỗ trợ từ PHP</span></th><th>Compatible</th><th>Performance</th></tr></thead>
+        <tbody>
+          <tr><td>7.4</td><td>php-7.4.33</td><td><span class="en">end of life</span><span class="vi">hết hỗ trợ</span></td><td><span class="status ok"><span class="en">tested</span><span class="vi">đã test</span></span></td><td>—</td></tr>
+          <tr><td>8.0</td><td>php-8.0.30</td><td><span class="en">end of life</span><span class="vi">hết hỗ trợ</span></td><td><span class="status warn">CI</span></td><td>—</td></tr>
+          <tr><td>8.1</td><td>php-8.1.34</td><td><span class="en">end of life</span><span class="vi">hết hỗ trợ</span></td><td><span class="status warn">CI</span></td><td><span class="status warn">CI</span></td></tr>
+          <tr><td>8.2</td><td>php-8.2.35</td><td><span class="en">security only</span><span class="vi">chỉ vá bảo mật</span></td><td><span class="status warn">CI</span></td><td><span class="status warn">CI</span></td></tr>
+          <tr><td>8.3</td><td>php-8.3.36</td><td><span class="en">security only</span><span class="vi">chỉ vá bảo mật</span></td><td><span class="status warn">CI</span></td><td><span class="status warn">CI</span></td></tr>
+          <tr><td>8.4</td><td>php-8.4.27</td><td><span class="en">active</span><span class="vi">đang hỗ trợ</span></td><td><span class="status warn">CI</span></td><td><span class="status warn">CI</span></td></tr>
+          <tr><td>8.5</td><td>php-8.5.12</td><td><span class="en">active</span><span class="vi">đang hỗ trợ</span></td><td><span class="status ok"><span class="en">tested</span><span class="vi">đã test</span></span></td><td><span class="status ok"><span class="en">tested</span><span class="vi">đã test</span></span></td></tr>
+        </tbody>
+      </table></div>
+      <p class="sub en">"tested": full build installed and run with real applications. "CI": built or run by the automated tests on GitHub Actions only.</p>
+      <p class="sub vi">"đã test": bản full đã cài và chạy với ứng dụng thật. "CI": chỉ được build hoặc chạy trong bộ test tự động trên GitHub Actions.</p>
+    </section>
+  </main>
+</div>
+
+<footer>
+  <div class="wrap">
+    <span>PHP QHturbo · <a href="https://github.com/qhsvn/QHTurbo">github.com/qhsvn/QHTurbo</a></span>
+    <span class="en">Full documentation in English and Vietnamese lives in the repository.</span>
+    <span class="vi">Tài liệu đầy đủ bằng tiếng Anh và tiếng Việt nằm trong repo.</span>
+  </div>
+</footer>
+
+<script type="application/json" id="finder-data">{"platforms": [{"id": "debian", "name": {"en": "Ubuntu / Debian", "vi": "Ubuntu / Debian"}, "hint": {"en": "build from source", "vi": "build từ mã nguồn"}}, {"id": "nginx", "name": "Nginx"}, {"id": "apache", "name": "Apache"}, {"id": "aapanel", "name": "aaPanel"}, {"id": "directadmin", "name": "DirectAdmin", "hint": {"en": "planned", "vi": "sắp có"}}, {"id": "cpanel", "name": "cPanel", "hint": {"en": "planned", "vi": "sắp có"}}], "modes": [{"id": "compatible", "name": "Compatible", "hint": {"en": "PHP-FPM, no code changes", "vi": "PHP-FPM, không sửa code"}}, {"id": "performance", "name": "Performance", "hint": {"en": "workers, PHP 8.1+", "vi": "worker, PHP 8.1+"}}], "status": {"ok": {"en": "Tested", "vi": "Đã test"}, "warn": {"en": "Works, partly tested", "vi": "Chạy được, test một phần"}, "plan": {"en": "Planned", "vi": "Đang lên kế hoạch"}}, "combos": {"debian/compatible": {"title": {"en": "Ubuntu / Debian, PHP-FPM", "vi": "Ubuntu / Debian, PHP-FPM"}, "status": "ok", "note": {"en": "Tested on Ubuntu 24.04 with PHP 7.4 and 8.5: legacy apps, Composer, Laravel.", "vi": "Đã test trên Ubuntu 24.04 với PHP 7.4 và 8.5: ứng dụng cũ, Composer, Laravel."}, "steps": [{"title": {"en": "Build and install QHturbo PHP", "vi": "Build và cài PHP của QHturbo"}, "code": "build", "text": {"en": "PHP 7.4/8.0: run scripts/deps-openssl11.sh before build.sh. --user is the web server user.", "vi": "PHP 7.4/8.0: chạy scripts/deps-openssl11.sh trước build.sh. --user là user của web server."}}, {"title": {"en": "Start PHP-FPM and check it", "vi": "Chạy PHP-FPM và kiểm tra"}, "code": "service"}, {"title": {"en": "Connect your web server", "vi": "Nối web server"}, "link": {"href": "#compatible", "label": {"en": "Nginx or Apache configuration", "vi": "Cấu hình Nginx hoặc Apache"}}}]}, "debian/performance": {"title": {"en": "Ubuntu / Debian, workers", "vi": "Ubuntu / Debian, worker"}, "status": "ok", "note": {"en": "Tested on Ubuntu 24.04 with PHP 8.5, Laravel 13, Symfony 8.1, MySQL 8 and Redis 7.", "vi": "Đã test trên Ubuntu 24.04 với PHP 8.5, Laravel 13, Symfony 8.1, MySQL 8 và Redis 7."}, "steps": [{"title": {"en": "Build and install QHturbo PHP", "vi": "Build và cài PHP của QHturbo"}, "code": "build", "text": {"en": "PHP 7.4/8.0: run scripts/deps-openssl11.sh before build.sh. --user is the web server user.", "vi": "PHP 7.4/8.0: chạy scripts/deps-openssl11.sh trước build.sh. --user là user của web server."}}, {"title": {"en": "Check your code first", "vi": "Kiểm tra code trước"}, "code": "doctor", "link": {"href": "#rules", "label": {"en": "Read the state rules", "vi": "Đọc quy tắc trạng thái"}}}, {"title": {"en": "Create the worker service", "vi": "Tạo service cho worker"}, "code": "worker_env", "text": {"en": "Laravel/Symfony: QHT_APP=/path/to/project and QHT_EXTRA_ARGS=--framework=laravel (or symfony).", "vi": "Laravel/Symfony: QHT_APP=/đường/dẫn/dự-án và QHT_EXTRA_ARGS=--framework=laravel (hoặc symfony)."}}, {"title": {"en": "Put a web server in front", "vi": "Đặt web server phía trước"}, "link": {"href": "#performance", "label": {"en": "Nginx or Apache proxy configuration", "vi": "Cấu hình proxy Nginx hoặc Apache"}}}, {"title": {"en": "Deploy new code later", "vi": "Deploy code mới về sau"}, "code": "deploy"}]}, "nginx/compatible": {"title": {"en": "Nginx + QHturbo PHP-FPM", "vi": "Nginx + PHP-FPM của QHturbo"}, "status": "ok", "note": {"en": "Tested on Ubuntu 24.04: two PHP versions side by side, switched per site.", "vi": "Đã test trên Ubuntu 24.04: hai phiên bản PHP chạy song song, chuyển theo từng site."}, "steps": [{"title": {"en": "Build and install QHturbo PHP", "vi": "Build và cài PHP của QHturbo"}, "code": "build", "text": {"en": "PHP 7.4/8.0: run scripts/deps-openssl11.sh before build.sh. --user is the web server user.", "vi": "PHP 7.4/8.0: chạy scripts/deps-openssl11.sh trước build.sh. --user là user của web server."}}, {"title": {"en": "Start PHP-FPM and check it", "vi": "Chạy PHP-FPM và kiểm tra"}, "code": "service"}, {"title": {"en": "Point the site at the socket", "vi": "Trỏ site vào socket"}, "code": "nginx_fpm"}, {"title": {"en": "Reload and check", "vi": "Reload và kiểm tra"}, "code": "nginx_reload"}]}, "nginx/performance": {"title": {"en": "Nginx in front of workers", "vi": "Nginx đứng trước worker"}, "status": "ok", "note": {"en": "This is the setup used for all published benchmarks.", "vi": "Đây là cách chạy dùng cho mọi số đo đã công bố."}, "steps": [{"title": {"en": "Build and install QHturbo PHP", "vi": "Build và cài PHP của QHturbo"}, "code": "build", "text": {"en": "PHP 7.4/8.0: run scripts/deps-openssl11.sh before build.sh. --user is the web server user.", "vi": "PHP 7.4/8.0: chạy scripts/deps-openssl11.sh trước build.sh. --user là user của web server."}}, {"title": {"en": "Check your code first", "vi": "Kiểm tra code trước"}, "code": "doctor", "link": {"href": "#rules", "label": {"en": "Read the state rules", "vi": "Đọc quy tắc trạng thái"}}}, {"title": {"en": "Create the worker service", "vi": "Tạo service cho worker"}, "code": "worker_env", "text": {"en": "Laravel/Symfony: QHT_APP=/path/to/project and QHT_EXTRA_ARGS=--framework=laravel (or symfony).", "vi": "Laravel/Symfony: QHT_APP=/đường/dẫn/dự-án và QHT_EXTRA_ARGS=--framework=laravel (hoặc symfony)."}}, {"title": {"en": "Proxy the site to the workers", "vi": "Proxy site sang worker"}, "code": "nginx_proxy"}, {"title": {"en": "Deploy new code later", "vi": "Deploy code mới về sau"}, "code": "deploy"}]}, "apache/compatible": {"title": {"en": "Apache 2.4 + QHturbo PHP-FPM", "vi": "Apache 2.4 + PHP-FPM của QHturbo"}, "status": "ok", "note": {"en": "Tested on 2026-10-22: Apache 2.4.58 (Ubuntu 24.04) with proxy_fcgi, switched per site from .htaccess. The site must not be served by mod_php.", "vi": "Đã test ngày 2026-10-22: Apache 2.4.58 (Ubuntu 24.04) với proxy_fcgi, chuyển từng site bằng .htaccess. Site không được chạy bằng mod_php."}, "steps": [{"title": {"en": "Build and install QHturbo PHP", "vi": "Build và cài PHP của QHturbo"}, "code": "build", "text": {"en": "PHP 7.4/8.0: run scripts/deps-openssl11.sh before build.sh. --user is the web server user.", "vi": "PHP 7.4/8.0: chạy scripts/deps-openssl11.sh trước build.sh. --user là user của web server."}}, {"title": {"en": "Start PHP-FPM and check it", "vi": "Chạy PHP-FPM và kiểm tra"}, "code": "service"}, {"title": {"en": "Hand .php files to QHturbo", "vi": "Giao file .php cho QHturbo"}, "code": "apache_fpm"}, {"title": {"en": "Reload and check", "vi": "Reload và kiểm tra"}, "code": "apache_reload"}]}, "apache/performance": {"title": {"en": "Apache in front of workers", "vi": "Apache đứng trước worker"}, "status": "ok", "note": {"en": "Tested on 2026-10-22 with Apache 2.4.58 mod_proxy_http: GET, POST and keep-alive, no failed requests.", "vi": "Đã test ngày 2026-10-22 với Apache 2.4.58 mod_proxy_http: GET, POST và keep-alive, không có request lỗi."}, "steps": [{"title": {"en": "Build and install QHturbo PHP", "vi": "Build và cài PHP của QHturbo"}, "code": "build", "text": {"en": "PHP 7.4/8.0: run scripts/deps-openssl11.sh before build.sh. --user is the web server user.", "vi": "PHP 7.4/8.0: chạy scripts/deps-openssl11.sh trước build.sh. --user là user của web server."}}, {"title": {"en": "Check your code first", "vi": "Kiểm tra code trước"}, "code": "doctor", "link": {"href": "#rules", "label": {"en": "Read the state rules", "vi": "Đọc quy tắc trạng thái"}}}, {"title": {"en": "Create the worker service", "vi": "Tạo service cho worker"}, "code": "worker_env", "text": {"en": "Laravel/Symfony: QHT_APP=/path/to/project and QHT_EXTRA_ARGS=--framework=laravel (or symfony).", "vi": "Laravel/Symfony: QHT_APP=/đường/dẫn/dự-án và QHT_EXTRA_ARGS=--framework=laravel (hoặc symfony)."}}, {"title": {"en": "Proxy the site to the workers", "vi": "Proxy site sang worker"}, "code": "apache_proxy"}, {"title": {"en": "Deploy new code later", "vi": "Deploy code mới về sau"}, "code": "deploy"}]}, "aapanel/compatible": {"title": {"en": "aaPanel (Nginx), one site at a time", "vi": "aaPanel (Nginx), từng site một"}, "status": "warn", "note": {"en": "One script does everything, with automatic rollback when nginx -t fails or the site returns 5xx. Tested end to end on a simulated aaPanel; not yet on a real aaPanel server. aaPanel with Apache or OpenLiteSpeed is not supported yet.", "vi": "Một script làm hết, tự rollback khi nginx -t lỗi hoặc site trả 5xx. Đã test đầy đủ trên aaPanel mô phỏng, chưa test trên server aaPanel thật. aaPanel dùng Apache hoặc OpenLiteSpeed chưa được hỗ trợ."}, "steps": [{"title": {"en": "Snapshot the server, then run", "vi": "Snapshot máy chủ, rồi chạy"}, "code": "aapanel"}, {"title": {"en": "Full guide", "vi": "Hướng dẫn đầy đủ"}, "link": {"href": "https://github.com/qhsvn/QHTurbo/blob/main/docs/aapanel.md", "label": {"en": "docs/aapanel.md", "vi": "docs/aapanel.vi.md"}}}]}, "aapanel/performance": {"title": {"en": "aaPanel, workers", "vi": "aaPanel, worker"}, "status": "warn", "note": {"en": "Manual for now: install with the aaPanel script, run workers as the www user, and add a reverse proxy to 127.0.0.1:8080 in the site settings. Not tested on a real aaPanel server.", "vi": "Hiện làm thủ công: cài bằng script aaPanel, chạy worker bằng user www, rồi thêm reverse proxy tới 127.0.0.1:8080 trong cấu hình site. Chưa test trên server aaPanel thật."}, "steps": [{"title": {"en": "Install QHturbo with the aaPanel script", "vi": "Cài QHturbo bằng script aaPanel"}, "code": "aapanel"}, {"title": {"en": "Check your code first", "vi": "Kiểm tra code trước"}, "code": "doctor", "link": {"href": "#rules", "label": {"en": "Read the state rules", "vi": "Đọc quy tắc trạng thái"}}}, {"title": {"en": "Create the worker service", "vi": "Tạo service cho worker"}, "code": "worker_env", "text": {"en": "Laravel/Symfony: QHT_APP=/path/to/project and QHT_EXTRA_ARGS=--framework=laravel (or symfony).", "vi": "Laravel/Symfony: QHT_APP=/đường/dẫn/dự-án và QHT_EXTRA_ARGS=--framework=laravel (hoặc symfony)."}}, {"title": {"en": "Deploy new code later", "vi": "Deploy code mới về sau"}, "code": "deploy"}]}, "directadmin/compatible": {"title": {"en": "DirectAdmin: planned", "vi": "DirectAdmin: đang lên kế hoạch"}, "status": "plan", "note": {"en": "Not automated yet. Each hosting account on this panel has its own Linux user, so a safe setup needs one PHP-FPM pool per account; that, and builds for AlmaLinux/Rocky, are next on the roadmap. Please open an issue with your panel and OS version so it can be tested on real servers.", "vi": "Chưa có tự động. Mỗi tài khoản hosting trên panel này có user Linux riêng, nên cách chạy an toàn cần một pool PHP-FPM cho mỗi tài khoản; phần này và bản build cho AlmaLinux/Rocky là việc tiếp theo trong lộ trình. Hãy mở issue ghi panel và phiên bản hệ điều hành để có thể test trên server thật."}, "steps": [{"title": {"en": "Request support", "vi": "Đề nghị hỗ trợ"}, "link": {"href": "https://github.com/qhsvn/QHTurbo/issues", "label": {"en": "Open an issue on GitHub", "vi": "Mở issue trên GitHub"}}}]}, "directadmin/performance": {"title": {"en": "DirectAdmin: planned", "vi": "DirectAdmin: đang lên kế hoạch"}, "status": "plan", "note": {"en": "Not automated yet. Each hosting account on this panel has its own Linux user, so a safe setup needs one PHP-FPM pool per account; that, and builds for AlmaLinux/Rocky, are next on the roadmap. Please open an issue with your panel and OS version so it can be tested on real servers.", "vi": "Chưa có tự động. Mỗi tài khoản hosting trên panel này có user Linux riêng, nên cách chạy an toàn cần một pool PHP-FPM cho mỗi tài khoản; phần này và bản build cho AlmaLinux/Rocky là việc tiếp theo trong lộ trình. Hãy mở issue ghi panel và phiên bản hệ điều hành để có thể test trên server thật."}, "steps": [{"title": {"en": "Request support", "vi": "Đề nghị hỗ trợ"}, "link": {"href": "https://github.com/qhsvn/QHTurbo/issues", "label": {"en": "Open an issue on GitHub", "vi": "Mở issue trên GitHub"}}}]}, "cpanel/compatible": {"title": {"en": "cPanel: planned", "vi": "cPanel: đang lên kế hoạch"}, "status": "plan", "note": {"en": "Not automated yet. Each hosting account on this panel has its own Linux user, so a safe setup needs one PHP-FPM pool per account; that, and builds for AlmaLinux/Rocky, are next on the roadmap. Please open an issue with your panel and OS version so it can be tested on real servers.", "vi": "Chưa có tự động. Mỗi tài khoản hosting trên panel này có user Linux riêng, nên cách chạy an toàn cần một pool PHP-FPM cho mỗi tài khoản; phần này và bản build cho AlmaLinux/Rocky là việc tiếp theo trong lộ trình. Hãy mở issue ghi panel và phiên bản hệ điều hành để có thể test trên server thật."}, "steps": [{"title": {"en": "Request support", "vi": "Đề nghị hỗ trợ"}, "link": {"href": "https://github.com/qhsvn/QHTurbo/issues", "label": {"en": "Open an issue on GitHub", "vi": "Mở issue trên GitHub"}}}]}, "cpanel/performance": {"title": {"en": "cPanel: planned", "vi": "cPanel: đang lên kế hoạch"}, "status": "plan", "note": {"en": "Not automated yet. Each hosting account on this panel has its own Linux user, so a safe setup needs one PHP-FPM pool per account; that, and builds for AlmaLinux/Rocky, are next on the roadmap. Please open an issue with your panel and OS version so it can be tested on real servers.", "vi": "Chưa có tự động. Mỗi tài khoản hosting trên panel này có user Linux riêng, nên cách chạy an toàn cần một pool PHP-FPM cho mỗi tài khoản; phần này và bản build cho AlmaLinux/Rocky là việc tiếp theo trong lộ trình. Hãy mở issue ghi panel và phiên bản hệ điều hành để có thể test trên server thật."}, "steps": [{"title": {"en": "Request support", "vi": "Đề nghị hỗ trợ"}, "link": {"href": "https://github.com/qhsvn/QHTurbo/issues", "label": {"en": "Open an issue on GitHub", "vi": "Mở issue trên GitHub"}}}]}}, "code": {"build": "sudo apt update && sudo apt install -y git build-essential autoconf bison re2c pkg-config python3 \\\n  libxml2-dev libssl-dev libsqlite3-dev zlib1g-dev libcurl4-openssl-dev libzip-dev \\\n  libonig-dev libicu-dev libsodium-dev libpng-dev libjpeg-dev libfreetype-dev libgmp-dev libreadline-dev\ngit clone https://github.com/qhsvn/QHTurbo.git && cd QHTurbo\nexport QHT_LAB=~/QHTurbo-lab QHT_PHP=8.5     # any of 7.4 8.0 8.1 8.2 8.3 8.4 8.5\nscripts/bootstrap.sh                          # download php-src, verify the tag\nQHT_PROFILE=full scripts/build.sh baseline    # PHP + PHP-FPM, 10-40 minutes\nsudo -E scripts/install.sh --user=www-data --group=www-data   # -> /opt/qhturbo/8.5", "nginx_fpm": "# inside the site's server { } block, instead of the old fastcgi_pass\nlocation ~ \\.php$ {\n    try_files $uri =404;\n    fastcgi_pass unix:/run/qhturbo/php85-fpm.sock;\n    fastcgi_index index.php;\n    include fastcgi_params;\n    fastcgi_param SCRIPT_FILENAME $document_root$fastcgi_script_name;\n}", "nginx_reload": "sudo nginx -t && sudo systemctl reload nginx\ncurl -sI http://your-site.example/ | head -1     # expect 200; on errors restore the old block", "apache_reload": "sudo apachectl configtest && sudo systemctl reload apache2\necho '<?php echo PHP_VERSION, \" \", PHP_SAPI;' | sudo tee /var/www/your-site/qht-check.php\ncurl -s http://your-site.example/qht-check.php    # \"8.5.x fpm-fcgi\" -> it runs on QHturbo; delete the file afterwards", "doctor": "# Check the PHP install (OPcache, Xdebug, EOL, extensions)\n/opt/qhturbo/8.5/bin/php /opt/qhturbo/8.5/share/qhturbo/qht-doctor.php\n# Scan an application for code that is risky in a long-lived worker\n/opt/qhturbo/8.5/bin/php /opt/qhturbo/8.5/share/qhturbo/qht-doctor.php --scan=/var/www/myapp", "aapanel": "git clone https://github.com/qhsvn/QHTurbo.git /opt/qhturbo-src && cd /opt/qhturbo-src\nsudo scripts/aapanel.sh check   --php=8.5                   # inspect only, changes nothing\nsudo scripts/aapanel.sh install --php=8.5                   # build + install + start PHP-FPM\nsudo scripts/aapanel.sh enable  test.example.com --php=8.5  # switch one site, auto-rollback on errors\nsudo scripts/aapanel.sh status\nsudo scripts/aapanel.sh disable test.example.com            # back to aaPanel's PHP", "worker_env": "sudo mkdir -p /etc/qhturbo\nsudo tee /etc/qhturbo/worker-myapp.env > /dev/null <<'EOF'\nQHT_APP=/var/www/myapp/app.php\nQHT_HOST=127.0.0.1\nQHT_PORT=8080\nQHT_WORKERS=4\nQHT_CONCURRENCY=1\nQHT_MAX_REQUESTS=10000\nQHT_MEMORY_LIMIT=256M\nQHT_EXTRA_ARGS=\nEOF\nsudo cp /opt/qhturbo/8.5/share/qhturbo/systemd/qhturbo-php85-worker@.service /etc/systemd/system/\nsudo systemctl daemon-reload && sudo systemctl enable --now qhturbo-php85-worker@myapp\ncurl http://127.0.0.1:8080/", "deploy": "sudo systemctl reload qhturbo-php85-worker@myapp   # rolling restart, no dropped requests\njournalctl -u qhturbo-php85-worker@myapp -n 50       # \"reload: done\" or \"reload aborted\"", "nginx_proxy": "upstream qhturbo_myapp { server 127.0.0.1:8080; keepalive 64; }\n\nserver {\n    server_name app.example.com;\n    root /var/www/myapp/public;               # static files stay with nginx\n\n    location / { try_files $uri @app; }\n    location @app {\n        proxy_http_version 1.1;\n        proxy_set_header Connection \"\";\n        proxy_set_header Host $host;\n        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;\n        proxy_set_header X-Forwarded-Proto $scheme;\n        proxy_pass http://qhturbo_myapp;\n    }\n}", "apache_fpm": "sudo a2enmod proxy proxy_fcgi setenvif\n# in the site's <VirtualHost>, or in its .htaccess (needs AllowOverride FileInfo):\n<FilesMatch \\.php$>\n    SetHandler \"proxy:unix:/run/qhturbo/php85-fpm.sock|fcgi://localhost\"\n<\/FilesMatch>", "service": "sudo cp /opt/qhturbo/8.5/share/qhturbo/systemd/qhturbo-php85-fpm.service /etc/systemd/system/\nsudo systemctl daemon-reload && sudo systemctl enable --now qhturbo-php85-fpm\n/opt/qhturbo/8.5/bin/php /opt/qhturbo/8.5/share/qhturbo/qht-doctor.php    # health check", "apache_proxy": "sudo a2enmod proxy proxy_http\n<VirtualHost *:80>\n    ServerName app.example.com\n    ProxyPreserveHost On\n    ProxyPass        / http://127.0.0.1:8080/ keepalive=On\n    ProxyPassReverse / http://127.0.0.1:8080/\n<\/VirtualHost>"}}</script>
+<script>
+(function () {
+  var body = document.body;
+  function store(k, v) { try { v === undefined ? (v = localStorage.getItem(k)) : localStorage.setItem(k, v); } catch (e) { v = null; } return v; }
+
+  // Language: saved choice, then #vi / #en, then the browser language.
+  function setLang(lang) {
+    body.classList.toggle('vi', lang === 'vi');
+    document.documentElement.lang = lang;
+    document.querySelectorAll('.lang button').forEach(function (b) { b.setAttribute('aria-pressed', String(b.dataset.lang === lang)); });
+    store('qht-lang', lang);
+    renderFinder();
+  }
+  document.querySelectorAll('.lang button').forEach(function (b) { b.addEventListener('click', function () { setLang(b.dataset.lang); }); });
+
+  // Copy buttons
+  function addCopy(root) {
+    root.querySelectorAll('.code').forEach(function (box) {
+      if (box.querySelector('.copy')) return;
+      var btn = document.createElement('button');
+      btn.type = 'button'; btn.className = 'copy';
+      btn.innerHTML = '<span class="en">Copy</span><span class="vi">Chép</span>';
+      btn.addEventListener('click', function () {
+        var text = box.querySelector('pre').innerText;
+        var done = function () { btn.innerHTML = '<span class="en">Copied</span><span class="vi">Đã chép</span>'; setTimeout(function () { btn.innerHTML = '<span class="en">Copy</span><span class="vi">Chép</span>'; }, 1600); };
+        var fallback = function () { var r = document.createRange(); r.selectNodeContents(box.querySelector('pre')); var s = getSelection(); s.removeAllRanges(); s.addRange(r); };
+        if (navigator.clipboard && navigator.clipboard.writeText) { navigator.clipboard.writeText(text).then(done, fallback); } else { fallback(); }
+      });
+      box.appendChild(btn);
+    });
+  }
+
+  // Path finder
+  var data = JSON.parse(document.getElementById('finder-data').textContent);
+  var state = { platform: store('qht-platform') || 'debian', mode: store('qht-mode') || 'compatible' };
+  if (!data.platforms.some(function (p) { return p.id === state.platform; })) state.platform = 'debian';
+  function t(o) { return typeof o === 'string' ? o : (body.classList.contains('vi') ? o.vi : o.en); }
+  function chips(el, items, key) {
+    el.textContent = '';
+    items.forEach(function (it) {
+      var b = document.createElement('button');
+      b.type = 'button'; b.className = 'chip';
+      b.setAttribute('aria-pressed', String(state[key] === it.id));
+      b.textContent = t(it.name);
+      if (it.hint) { var s = document.createElement('small'); s.textContent = t(it.hint); b.appendChild(s); }
+      b.addEventListener('click', function () { state[key] = it.id; store('qht-' + key, it.id); renderFinder(); });
+      el.appendChild(b);
+    });
+  }
+  function renderFinder() {
+    chips(document.getElementById('platforms'), data.platforms, 'platform');
+    chips(document.getElementById('modes'), data.modes, 'mode');
+    var combo = data.combos[state.platform + '/' + state.mode];
+    var out = document.getElementById('result');
+    out.textContent = '';
+    var head = document.createElement('div'); head.className = 'result-head';
+    var title = document.createElement('strong'); title.textContent = t(combo.title); head.appendChild(title);
+    var st = document.createElement('span'); st.className = 'status ' + combo.status; st.textContent = t(data.status[combo.status]); head.appendChild(st);
+    out.appendChild(head);
+    if (combo.note) { var n = document.createElement('p'); n.className = 'note' + (combo.status === 'ok' ? ' info' : ''); n.textContent = t(combo.note); out.appendChild(n); }
+    if (combo.steps.length) {
+      var ol = document.createElement('ol'); ol.className = 'steps';
+      combo.steps.forEach(function (s) {
+        var li = document.createElement('li');
+        var h = document.createElement('h3'); h.textContent = t(s.title); li.appendChild(h);
+        if (s.text) { var p = document.createElement('p'); p.className = 'sub'; p.textContent = t(s.text); li.appendChild(p); }
+        if (s.code) { var box = document.createElement('div'); box.className = 'code'; var pre = document.createElement('pre'); var c = document.createElement('code'); c.textContent = data.code[s.code]; pre.appendChild(c); box.appendChild(pre); li.appendChild(box); }
+        if (s.link) { var a = document.createElement('a'); a.href = s.link.href; a.textContent = t(s.link.label); li.appendChild(a); }
+        ol.appendChild(li);
+      });
+      out.appendChild(ol);
+    }
+    addCopy(out);
+  }
+
+  // Example tabs
+  var tabs = document.getElementById('extabs');
+  var panels = Array.prototype.slice.call(document.querySelectorAll('#expanels > .panel'));
+  panels.forEach(function (p, i) {
+    var b = document.createElement('button');
+    b.type = 'button'; b.setAttribute('role', 'tab'); b.id = 'tab-' + p.id; b.setAttribute('aria-controls', p.id);
+    b.innerHTML = p.dataset.tab;
+    b.addEventListener('click', function () { select(i); });
+    tabs.appendChild(b);
+    p.setAttribute('role', 'tabpanel'); p.setAttribute('aria-labelledby', b.id);
+  });
+  function select(i) {
+    panels.forEach(function (p, j) { p.hidden = i !== j; tabs.children[j].setAttribute('aria-selected', String(i === j)); });
+  }
+  select(0);
+
+  // Table of contents highlight
+  var links = Array.prototype.slice.call(document.querySelectorAll('.toc a'));
+  if ('IntersectionObserver' in window) {
+    var io = new IntersectionObserver(function (entries) {
+      entries.forEach(function (e) {
+        if (e.isIntersecting) links.forEach(function (a) { a.classList.toggle('on', a.getAttribute('href') === '#' + e.target.id); });
+      });
+    }, { rootMargin: '-30% 0px -65% 0px' });
+    document.querySelectorAll('main > section').forEach(function (s) { io.observe(s); });
+  }
+
+  addCopy(document);
+  var hash = (location.hash || '').slice(1);
+  var saved = store('qht-lang');
+  setLang(hash === 'vi' || hash === 'en' ? hash : saved || ((navigator.language || '').toLowerCase().indexOf('vi') === 0 ? 'vi' : 'en'));
+})();
+</script>
+<!--/BODY-->
+</body>
+</html>
