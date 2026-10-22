@@ -3,8 +3,10 @@
 #   sudo scripts/install-ext.sh redis [--php=8.5] [--version=6.1.0]
 #   sudo scripts/install-ext.sh imagick --php=7.4
 #   sudo scripts/install-ext.sh ioncube --php=7.4   (ionCube Loader, binary from ioncube.com)
-# Source: pecl.php.net; falls back to the extension's GitHub repository
-# when PECL is unreachable. Libraries an extension needs (ImageMagick,
+#   sudo scripts/install-ext.sh pgsql --php=8.3     (extensions that ship with PHP itself)
+# Source: pecl.php.net, falling back to the extension's GitHub repository
+# when PECL is unreachable; extensions that ship with PHP (pgsql, xsl, ffi,
+# bz2, ldap...) are built from the PHP source of the same version. Libraries an extension needs (ImageMagick,
 # libmemcached...) are installed with apt or dnf first. Writes
 # <prefix>/etc/conf.d/30-<ext>.ini and reloads PHP-FPM.
 set -euo pipefail
@@ -26,12 +28,23 @@ prefix="/opt/qhturbo/$phpv"
 [[ -x "$prefix/bin/phpize" ]] || die "QHturbo PHP $phpv not installed in $prefix"
 tag="${phpv/./}"
 reload_fpm() {
-  if [[ -f "/run/qhturbo/php$tag-fpm.pid" ]]; then
-    kill -USR2 "$(cat "/run/qhturbo/php$tag-fpm.pid")" && log "PHP-FPM $phpv reloaded"
+  if [[ -f "/run/qhturbo/php$tag-fpm.pid" ]] && kill -USR2 "$(cat "/run/qhturbo/php$tag-fpm.pid")" 2> /dev/null; then
+    log "PHP-FPM $phpv reloaded"
+  else
+    log "PHP-FPM $phpv is not running; the extension is used from its next start"
   fi
 }
+# Capture first: "php -m | grep -q" fails under pipefail when grep exits early.
+has_module() { local m; m="$("$prefix/bin/php" -m 2> /dev/null || true)"; grep -qix -- "$1" <<< "$m"; }
+has_ioncube() { local v; v="$("$prefix/bin/php" -v 2>&1 || true)"; grep -qi ioncube <<< "$v"; }
 work="$(mktemp -d)"
 trap 'rm -rf "$work"' EXIT
+
+if [[ "$ext" == ioncube ]]; then
+  has_ioncube && { log "ionCube Loader is already enabled for PHP $phpv"; exit 0; }
+elif has_module "$ext"; then
+  log "$ext is already enabled in PHP $phpv"; exit 0
+fi
 
 # ionCube Loader: a closed-source binary, one file per PHP version.
 if [[ "$ext" == ioncube ]]; then
@@ -56,7 +69,7 @@ if [[ "$ext" == ioncube ]]; then
   install -m 755 "$work/ioncube/$so" "$extdir/$so"
   # Must be the first zend_extension (before OPcache): 00- sorts first.
   echo "zend_extension=$so" > "$prefix/etc/conf.d/00-ioncube.ini"
-  "$prefix/bin/php" -v 2>&1 | grep -qi 'ionCube' || die "ionCube Loader installed but not loaded; see $prefix/etc/conf.d/00-ioncube.ini"
+  has_ioncube || die "ionCube Loader installed but not loaded; see $prefix/etc/conf.d/00-ioncube.ini"
   log "ionCube Loader enabled for PHP $phpv ($prefix/etc/conf.d/00-ioncube.ini)"
   reload_fpm
   exit 0
@@ -66,10 +79,15 @@ fi
 declare -A APT_DEPS=(
   [imagick]=libmagickwand-dev [memcached]="libmemcached-dev zlib1g-dev" [mcrypt]=libmcrypt-dev
   [zstd]=libzstd-dev [zmq]=libzmq3-dev [mongodb]="libssl-dev" [yaml]=libyaml-dev [gnupg]=libgpgme-dev
+  [pgsql]=libpq-dev [pdo_pgsql]=libpq-dev [xsl]=libxslt1-dev [ffi]=libffi-dev [bz2]=libbz2-dev
+  [tidy]=libtidy-dev [ldap]=libldap2-dev [snmp]=libsnmp-dev [enchant]=libenchant-2-dev [pdo_odbc]=unixodbc-dev [odbc]=unixodbc-dev
 )
 declare -A DNF_DEPS=(
   [imagick]=ImageMagick-devel [memcached]="libmemcached-awesome-devel|libmemcached-devel zlib-devel" [mcrypt]=libmcrypt-devel
   [zstd]=libzstd-devel [zmq]=zeromq-devel [mongodb]="openssl-devel" [yaml]=libyaml-devel [gnupg]=gpgme-devel
+  [pgsql]="libpq-devel|postgresql-devel" [pdo_pgsql]="libpq-devel|postgresql-devel" [xsl]=libxslt-devel [ffi]=libffi-devel
+  [bz2]=bzip2-devel [tidy]=libtidy-devel [ldap]=openldap-devel [snmp]=net-snmp-devel [enchant]=enchant2-devel
+  [pdo_odbc]=unixODBC-devel [odbc]=unixODBC-devel
 )
 if [[ "${SKIP_DEPS:-0}" != 1 ]]; then
   if command -v apt-get > /dev/null && [[ -n "${APT_DEPS[$ext]:-}" ]]; then
@@ -95,9 +113,39 @@ declare -A GITHUB=(
 )
 
 src=""
+configure_args=()
+# Extensions that are part of php-src (not on PECL).
+BUNDLED=" bcmath bz2 calendar ctype curl dba dom enchant exif ffi fileinfo ftp gd gettext gmp iconv imap intl ldap
+  mbstring mysqli odbc opcache pcntl pdo_dblib pdo_firebird pdo_mysql pdo_odbc pdo_pgsql pdo_sqlite pgsql phar posix
+  pspell readline shmop simplexml snmp soap sockets sodium sqlite3 sysvmsg sysvsem sysvshm tidy tokenizer xml
+  xmlreader xmlrpc xmlwriter xsl zip zlib "
+if [[ " ${BUNDLED//$'\n'/ } " == *" $ext "* ]]; then
+  phpver="$("$prefix/bin/php-config" --version)"
+  # The build tree QHturbo was compiled from, if it is still there.
+  # Only tracked source files (git archive): the build tree also holds
+  # objects compiled into PHP itself, which must not end up in a module.
+  for d in "${QHT_LAB:-/opt/qhturbo-lab}"/worktrees/"$phpv"/*/; do
+    [[ -d "$d/ext/$ext" ]] || continue
+    grep -q "PHP_VERSION \"$phpver\"" "$d/main/php_version.h" 2> /dev/null || continue
+    git -C "$d" archive --format=tar HEAD "ext/$ext" 2> /dev/null | tar -x -C "$work" || continue
+    src="$work/ext/$ext"; log "building bundled ext/$ext from $d"; break
+  done
+  if [[ -z "$src" ]]; then
+    url="https://github.com/php/php-src/archive/refs/tags/php-$phpver.tar.gz"
+    log "downloading ext/$ext from the PHP $phpver source ($url)"
+    curl -fsSL --max-time 300 "$url" | tar -xz -C "$work" "php-src-php-$phpver/ext/$ext" \
+      || die "cannot download the PHP $phpver source"
+    src="$work/php-src-php-$phpver/ext/$ext"
+  fi
+  [[ -f "$src/config.m4" || ! -f "$src/config0.m4" ]] || cp "$src/config0.m4" "$src/config.m4"
+  # phpize builds need the extension switched on explicitly; configure
+  # ignores whichever of the two does not apply.
+  configure_args=("--with-$ext" "--enable-$ext")
+fi
 url="https://pecl.php.net/get/$ext${version:+-$version}"
-log "downloading $url"
-if curl -fsSL --max-time 60 -o "$work/ext.tgz" "$url" && tar -xzf "$work/ext.tgz" -C "$work"; then
+if [[ -n "$src" ]]; then
+  :
+elif log "downloading $url" && curl -fsSL --max-time 60 -o "$work/ext.tgz" "$url" && tar -xzf "$work/ext.tgz" -C "$work"; then
   src="$(find "$work" -mindepth 1 -maxdepth 1 -type d -name "$ext-*" | head -1)"
 elif [[ -n "${GITHUB[$ext]:-}" ]]; then
   repo="https://github.com/${GITHUB[$ext]}.git"
@@ -120,8 +168,8 @@ fi
 
 log "building $ext for PHP $("$prefix/bin/php" -r 'echo PHP_VERSION;')"
 (cd "$src" && "$prefix/bin/phpize" > "$work/build.log" 2>&1 \
-  && ./configure --with-php-config="$prefix/bin/php-config" >> "$work/build.log" 2>&1 \
-  && make -j"$(nproc)" >> "$work/build.log" 2>&1 \
+  && ./configure --with-php-config="$prefix/bin/php-config" "${configure_args[@]}" >> "$work/build.log" 2>&1 \
+  && make -j"$(nproc)" RE2C="$(command -v re2c || echo re2c)" >> "$work/build.log" 2>&1 \
   && make install >> "$work/build.log" 2>&1) \
   || { tail -30 "$work/build.log" >&2; die "build of $ext failed (missing -dev library?)"; }
 
@@ -130,7 +178,11 @@ case "$ext" in
   xdebug|opcache) echo "zend_extension=$ext" > "$ini" ;;
   *) echo "extension=$ext" > "$ini" ;;
 esac
-"$prefix/bin/php" -m | grep -qix "$ext" || die "$ext built but does not load; see $ini"
+if ! has_module "$ext"; then
+  "$prefix/bin/php" -m 2>&1 | grep -i "$ext" | head -3 >&2 || true
+  rm -f "$ini"
+  die "$ext was built but does not load (ini removed)"
+fi
 log "$ext enabled ($ini)"
 
 reload_fpm

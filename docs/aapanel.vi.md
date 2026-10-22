@@ -74,6 +74,16 @@ Sau bước này **chưa có site nào đổi gì**.
 
 ## 3. Bổ sung extension còn thiếu
 
+**Tự động:** `install` và `enable` tự đưa vào QHturbo các extension mà PHP aaPanel cùng phiên bản đang có (`NO_SYNC_EXT=1` để tắt). Chạy bằng tay:
+
+```bash
+sudo scripts/aapanel.sh sync-ext --php=7.4     # chép những gì PHP 7.4 của aaPanel có sang QHturbo 7.4
+```
+
+Script ưu tiên dùng lại chính file `.so` của aaPanel (cùng phiên bản PHP = cùng định dạng extension), nhưng chỉ những file nạp vào QHturbo không lỗi; phần còn lại, và các extension được build sẵn bên trong PHP aaPanel, được build từ mã nguồn bằng `install-ext.sh`. Cách này dùng được cả ngoài aaPanel: `sudo scripts/sync-ext.sh --from=/đường/dẫn/php-khác --php=7.4` (DirectAdmin `/usr/local/php74/bin/php`, cPanel `/opt/cpanel/ea-php74/root/usr/bin/php`, PHP của hệ điều hành).
+
+**Từng extension một:**
+
 ```bash
 sudo scripts/aapanel.sh check --php=8.5        # xem các dòng "extensions in aaPanel PHP X but not in QHturbo"
 sudo scripts/install-ext.sh redis --php=8.5

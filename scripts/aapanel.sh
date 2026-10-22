@@ -9,6 +9,10 @@
 #   sudo scripts/aapanel.sh disable <site>              switch the site back to aaPanel PHP
 #   sudo scripts/aapanel.sh status                      which sites use QHturbo, service health
 #   sudo scripts/aapanel.sh sync-ini [--php=8.5]        re-copy limits/disable_functions from aaPanel php.ini
+#   sudo scripts/aapanel.sh sync-ext [--php=8.5]        give QHturbo the extensions of aaPanel's PHP of that
+#                                                       version (reuses its .so files, builds the rest);
+#                                                       also runs after install and before enable
+#                                                       (NO_SYNC_EXT=1 to skip)
 #   sudo scripts/aapanel.sh uninstall [--php=8.5]       disable all sites, stop + remove the service
 #
 # Works with aaPanel's nginx or Apache (detected; force with --web=nginx|apache).
@@ -118,6 +122,16 @@ explain_failure() { # site sizes current
   return 0
 }
 
+# Extensions: copy/build what aaPanel's PHP <tag> has into QHturbo $PHPV.
+do_sync_ext() { # [aaPanel tag, default: same version]
+  local tag="${1:-$TAG}" src
+  src="$ROOT/www/server/php/$tag/bin/php"
+  [[ -x "$src" ]] || { log "no aaPanel PHP $tag here; nothing to sync"; return 0; }
+  log "syncing extensions from aaPanel PHP $tag ($src)"
+  QHT_LAB="$QHT_LAB" "$QHT_ROOT/scripts/sync-ext.sh" --from="$src" --php="$PHPV" \
+    || warn "some extensions are still missing (see above); sites that need them may fail"
+}
+
 # How a vhost hands PHP to PHP-FPM:
 #   nginx:  include enable-php-84.conf;   (aaPanel's per-version include)
 #   apache: SetHandler "proxy:unix:/tmp/php-cgi-84.sock|fcgi://localhost"
@@ -153,7 +167,7 @@ do_check() {
     nginx) log "web server: $("$NGINX_BIN" -v 2>&1)" ;;
     apache)
       log "web server: $("$APACHE_BIN" -v 2>&1 | head -1)"
-      "$APACHE_BIN" -M 2>/dev/null | grep -q proxy_fcgi_module \
+      grep -q proxy_fcgi_module <<< "$("$APACHE_BIN" -M 2>/dev/null || true)" \
         || warn "Apache module proxy_fcgi is not loaded; aaPanel normally loads it (PHP-FPM sites need it)"
       ;;
     *) if [[ -d "$ROOT/usr/local/lsws" ]]; then warn "OpenLiteSpeed is not supported yet (nginx and Apache are)"
@@ -329,6 +343,7 @@ do_install() {
     write_include
     web_test || die "nginx -t failed after adding $INCLUDE (no site uses it yet); check $NGINX_CONF/$INCLUDE"
   fi
+  [[ "${NO_SYNC_EXT:-0}" == 1 ]] || do_sync_ext
   "$PREFIX/bin/php" "$PREFIX/share/qhturbo/qht-doctor.php" || true
   cat >&2 <<EOF
 
@@ -374,6 +389,14 @@ do_enable() {
       die "$site has no 'SetHandler \"proxy:unix:...|fcgi://localhost\"' line (static site, or PHP not set in aaPanel); edit it by hand"
     fi
     die "$site has no 'include enable-php-XX.conf;' line (static site or custom config); edit it by hand"
+  fi
+
+  # Same PHP version as the site: bring over its extensions first.
+  local site_tag missing
+  site_tag="$(grep -oE '(php-cgi-|enable-php-)[0-9]+' <<< "$current" | grep -oE '[0-9]+$' || true)"
+  if [[ "${NO_SYNC_EXT:-0}" != 1 && "$site_tag" == "$TAG" ]]; then
+    missing="$(missing_exts "$site_tag")"
+    [[ -z "${missing// /}" ]] || do_sync_ext "$site_tag"
   fi
 
   local before; before="$(http_code "$site")"
@@ -465,7 +488,14 @@ case "$cmd" in
   enable) do_enable ;;
   disable) do_disable ;;
   status) do_status ;;
-  sync-ini) need_root; sync_aapanel_ini; [[ -f "/run/qhturbo/php$TAG-fpm.pid" ]] && kill -USR2 "$(cat "/run/qhturbo/php$TAG-fpm.pid")" && log "PHP-FPM reloaded" ;;
+  sync-ext) need_root; do_sync_ext ;;
+  sync-ini)
+    need_root; sync_aapanel_ini
+    if [[ -f "/run/qhturbo/php$TAG-fpm.pid" ]] && kill -USR2 "$(cat "/run/qhturbo/php$TAG-fpm.pid")" 2> /dev/null; then
+      log "PHP-FPM reloaded"
+    else
+      warn "PHP-FPM $PHPV is not running; start it with: systemctl start $SERVICE"
+    fi ;;
   uninstall) do_uninstall ;;
   *) sed -n '2,15p' "$0" | sed 's/^# \{0,1\}//'; exit 1 ;;
 esac

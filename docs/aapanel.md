@@ -74,6 +74,16 @@ After this step **no site has changed yet**.
 
 ## 3. Adding missing extensions
 
+**Automatic:** `install` and `enable` give QHturbo the extensions of aaPanel's PHP of the same version on their own (`NO_SYNC_EXT=1` turns this off). To run it by hand:
+
+```bash
+sudo scripts/aapanel.sh sync-ext --php=7.4     # copies what aaPanel PHP 7.4 has into QHturbo 7.4
+```
+
+It first reuses aaPanel's own `.so` files (same PHP version = same extension format), but only those that load cleanly into QHturbo; everything else, and extensions compiled into aaPanel's PHP, is built from source with `install-ext.sh`. The same works outside aaPanel: `sudo scripts/sync-ext.sh --from=/path/to/other/php --php=7.4` (DirectAdmin `/usr/local/php74/bin/php`, cPanel `/opt/cpanel/ea-php74/root/usr/bin/php`, distro PHP).
+
+**One at a time:**
+
 ```bash
 sudo scripts/aapanel.sh check --php=8.5        # look at the "extensions in aaPanel PHP X but not in QHturbo" lines
 sudo scripts/install-ext.sh redis --php=8.5
