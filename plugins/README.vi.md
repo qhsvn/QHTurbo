@@ -6,7 +6,7 @@ Plugin là giao diện cho các script của QHturbo: mọi thao tác trong plug
 
 | Panel | Trạng thái |
 |---|---|
-| **aaPanel** (nginx hoặc Apache) | Dùng thử được. Đã test trên aaPanel mô phỏng: backend của plugin chuyển site sang QHturbo và quay lại, chặn dữ liệu nhập sai, chạy tác vụ dài ở chế độ nền. Chưa test bên trong một aaPanel thật. |
+| **aaPanel** (nginx hoặc Apache) | Dùng thử được. Đã test trên aaPanel mô phỏng: backend của plugin chuyển site sang QHturbo và quay lại, chặn dữ liệu nhập sai, chạy tác vụ dài ở chế độ nền. Server thật đầu tiên (aaPanel dùng Apache, họ RHEL, 2026-10-23): plugin cài được và build được PHP QHturbo 8.5; đang thử chuyển site từ plugin. |
 | **DirectAdmin** (Apache hoặc nginx_apache, PHP-FPM) | Dùng thử được. Đã test trên DirectAdmin mô phỏng với Apache thật (32 kiểm tra: pool riêng cho từng user, giữ nguyên cấu hình httpd tuỳ chỉnh, rollback, trang plugin chạy bằng PHP 7.4, tác tử root từ chối yêu cầu không phải của admin hoặc bị làm giả). Chưa test bên trong một DirectAdmin thật. Chưa hỗ trợ nginx thuần và (Open)LiteSpeed. |
 | cPanel / WHM | Đang lên kế hoạch: plugin WHM với pool riêng cho mỗi tài khoản, chạy song song với PHP của EasyApache. |
 

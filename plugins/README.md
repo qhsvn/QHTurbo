@@ -6,7 +6,7 @@ The plugins are a user interface over the QHturbo scripts: every action they off
 
 | Panel | Status |
 |---|---|
-| **aaPanel** (nginx or Apache) | Ready to try. Tested on simulated aaPanel servers: the plugin backend switches a site to QHturbo and back, rejects malformed input, and runs long tasks in the background. Not yet tested inside a real aaPanel. |
+| **aaPanel** (nginx or Apache) | Ready to try. Tested on simulated aaPanel servers: the plugin backend switches a site to QHturbo and back, rejects malformed input, and runs long tasks in the background. First real server (aaPanel with Apache, RHEL family, 2026-10-23): the plugin installs and builds QHturbo PHP 8.5; switching sites from the plugin is being tried. |
 | **DirectAdmin** (Apache or nginx_apache, PHP-FPM) | Ready to try. Tested on a simulated DirectAdmin with a real Apache (32 checks: per-user pools, custom httpd code kept, rollback, the plugin page under PHP 7.4, the root agent refusing non-admin and forged requests). Not yet tested inside a real DirectAdmin. Plain nginx and (Open)LiteSpeed are not supported yet. |
 | cPanel / WHM | Planned: a WHM plugin with per-account pools, alongside EasyApache's PHP. |
 
