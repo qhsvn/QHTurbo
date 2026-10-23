@@ -227,6 +227,7 @@ do_check() {
     *) warn "web server '$ws' is not supported yet (apache and nginx_apache are)"; ok=0 ;;
   esac
   local os; os="$(. /etc/os-release && echo "$PRETTY_NAME")"
+  warn_el7
   log "OS: $os, $(nproc) CPU, $(free -m | awk '/Mem:/{print $2}') MiB RAM, $(df -Pm / | awk 'NR==2{print $4}') MiB free on /"
   id "$WEB_USER" > /dev/null 2>&1 && log "web server user: $WEB_USER" || warn "user '$WEB_USER' not found (set DA_WEB_USER)"
   local n v list=""

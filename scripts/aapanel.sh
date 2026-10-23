@@ -176,6 +176,7 @@ do_check() {
        ok=0 ;;
   esac
   local os; os="$(. /etc/os-release && echo "$PRETTY_NAME")"
+  warn_el7
   log "OS: $os, $(nproc) CPU, $(free -m | awk '/Mem:/{print $2}') MiB RAM, $(df -Pm / | awk 'NR==2{print $4}') MiB free on /"
   if [[ $(free -m | awk '/Mem:/{print $2+0}') -lt 1800 ]] && [[ $(free -m | awk '/Swap:/{print $2+0}') -lt 1024 ]]; then
     warn "less than 2 GB RAM and no swap: the build may run out of memory. Add 2 GB swap first (see docs/aapanel.md)"
