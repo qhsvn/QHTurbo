@@ -27,6 +27,9 @@
 # Web servers: Apache, or nginx_apache (Apache runs PHP). Plain nginx and
 # (Open)LiteSpeed are not supported yet.
 set -euo pipefail
+# Control panels may start us with a minimal PATH (aaPanel's panel process):
+# make sure the system tools (dnf/apt-get, git, gcc, systemctl) are found.
+export PATH="/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin${PATH:+:$PATH}"
 
 ROOT="${DA_ROOT:-}"                      # test hook: a fake filesystem root
 DA="$ROOT/usr/local/directadmin"

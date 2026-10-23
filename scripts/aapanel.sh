@@ -20,6 +20,9 @@
 # <site> is the vhost file name in /www/server/panel/vhost/{nginx,apache}/
 # without ".conf" (usually the domain, e.g. example.com).
 set -euo pipefail
+# Control panels may start us with a minimal PATH (aaPanel's panel process):
+# make sure the system tools (dnf/apt-get, git, gcc, systemctl) are found.
+export PATH="/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin${PATH:+:$PATH}"
 
 ROOT="${AAPANEL_ROOT:-}"                 # test hook: a fake filesystem root
 PANEL="$ROOT/www/server/panel"

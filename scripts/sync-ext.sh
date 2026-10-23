@@ -12,6 +12,9 @@
 # Extensions compiled into the source PHP (no .so) are built the same way.
 # Nothing is changed in the source PHP. PHP-FPM is reloaded at the end.
 set -euo pipefail
+# Control panels may start us with a minimal PATH (aaPanel's panel process):
+# make sure the system tools (dnf/apt-get, git, gcc, systemctl) are found.
+export PATH="/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin${PATH:+:$PATH}"
 
 log()  { printf '\033[1;34m[qhturbo-sync-ext]\033[0m %s\n' "$*" >&2; }
 warn() { printf '\033[1;33m[qhturbo-sync-ext] WARNING:\033[0m %s\n' "$*" >&2; }

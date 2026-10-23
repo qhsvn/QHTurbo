@@ -18,6 +18,9 @@
 # Only files owned by root or by a user listed in the panel's admin list
 # are executed; anything else is deleted unread.
 set -euo pipefail
+# Control panels may start us with a minimal PATH (aaPanel's panel process):
+# make sure the system tools (dnf/apt-get, git, gcc, systemctl) are found.
+export PATH="/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin${PATH:+:$PATH}"
 
 QHT_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 SPOOL="${QHT_SPOOL:-/var/spool/qhturbo}"

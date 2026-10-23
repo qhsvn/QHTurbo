@@ -10,6 +10,9 @@
 # libmemcached...) are installed with apt or dnf first. Writes
 # <prefix>/etc/conf.d/30-<ext>.ini and reloads PHP-FPM.
 set -euo pipefail
+# Control panels may start us with a minimal PATH (aaPanel's panel process):
+# make sure the system tools (dnf/apt-get, git, gcc, systemctl) are found.
+export PATH="/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin${PATH:+:$PATH}"
 
 log() { printf '\033[1;34m[qhturbo-ext]\033[0m %s\n' "$*" >&2; }
 die() { printf '\033[1;31m[qhturbo-ext] ERROR:\033[0m %s\n' "$*" >&2; exit 1; }

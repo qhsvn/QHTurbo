@@ -22,6 +22,15 @@ JOB_CMD = JOB_DIR + '/plugin-job.cmd'
 VERSIONS = ('7.4', '8.0', '8.1', '8.2', '8.3', '8.4', '8.5')
 SITE_RE = re.compile(r'^[A-Za-z0-9][A-Za-z0-9._-]{0,252}$')
 ANSI_RE = re.compile(r'\x1b\[[0-9;]*m')
+# The panel process may have a minimal PATH; the scripts need the system tools.
+SYS_PATH = '/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'
+
+
+def _env(**extra):
+    env = dict(os.environ)
+    env['PATH'] = SYS_PATH + (':' + env['PATH'] if env.get('PATH') else '')
+    env.update(extra)
+    return env
 
 
 def _ok(data=None, msg=''):
@@ -48,7 +57,7 @@ class qhturbo_main:
     # ------------------------------------------------------------ helpers --
     def _run(self, args, timeout=120):
         """Run aapanel.sh synchronously (quick commands only)."""
-        p = subprocess.Popen(['bash', SCRIPT] + args, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+        p = subprocess.Popen(['/bin/bash', SCRIPT] + args, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, env=_env())
         try:
             out, _ = p.communicate(timeout=timeout)
         except subprocess.TimeoutExpired:
@@ -86,8 +95,8 @@ class qhturbo_main:
         # the background, in its own session, and exits. "[exit N]" marks
         # the end in the log.
         wrapper = '( bash "$0" "$@"; echo "[exit $?]" ) >> "$QHT_JOB_LOG" 2>&1 < /dev/null & echo $!'
-        env = dict(os.environ, QHT_JOB_LOG=JOB_LOG)
-        p = subprocess.Popen(['bash', '-c', wrapper, SCRIPT] + args, stdout=subprocess.PIPE,
+        env = _env(QHT_JOB_LOG=JOB_LOG)
+        p = subprocess.Popen(['/bin/bash', '-c', wrapper, SCRIPT] + args, stdout=subprocess.PIPE,
                              stdin=open(os.devnull), cwd=SRC, close_fds=True, env=env, preexec_fn=os.setsid)
         out = p.communicate()[0].decode().strip()
         try:
@@ -133,7 +142,7 @@ class qhturbo_main:
                 qht = '' if f[3] == '-' else '%s.%s' % (f[3][0], f[3][1:])
                 sites.append({'site': f[0], 'web': f[1], 'php': orig, 'qhturbo': qht})
         rev = subprocess.Popen(['git', '-C', SRC, 'log', '-1', '--format=%h %cs'], stdout=subprocess.PIPE,
-                               stderr=subprocess.DEVNULL).communicate()[0].decode().strip()
+                               stderr=subprocess.DEVNULL, env=_env()).communicate()[0].decode().strip()
         return _ok({'ready': True, 'src': SRC, 'revision': rev, 'versions': versions, 'sites': sites,
                     'job': self._job_state()})
 
@@ -201,7 +210,7 @@ class qhturbo_main:
         """git pull the QHturbo scripts."""
         if self._job_pid():
             return _err('Wait for the running task to finish')
-        p = subprocess.Popen(['git', '-C', SRC, 'pull', '--ff-only'], stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+        p = subprocess.Popen(['git', '-C', SRC, 'pull', '--ff-only'], stdout=subprocess.PIPE, stderr=subprocess.STDOUT, env=_env())
         out = p.communicate()[0].decode('utf-8', 'replace')
         return _ok({'exit': p.returncode, 'output': out}, 'Updated' if p.returncode == 0 else 'Update failed')
 

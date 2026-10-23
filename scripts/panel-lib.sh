@@ -17,8 +17,15 @@ install_deps() {
     dnf install -y git gcc gcc-c++ make autoconf bison re2c pkgconf python3 libxml2-devel openssl-devel \
       sqlite-devel zlib-devel libcurl-devel libzip-devel oniguruma-devel libicu-devel libsodium-devel \
       libpng-devel libjpeg-turbo-devel freetype-devel gmp-devel readline-devel
+  elif command -v yum > /dev/null; then
+    # CentOS 7 / older RHEL: same packages, no "config-manager --set-enabled crb".
+    log "installing build dependencies (yum; needs EPEL)"
+    yum install -y epel-release || true
+    yum install -y git gcc gcc-c++ make autoconf bison re2c pkgconfig python3 libxml2-devel openssl-devel \
+      sqlite-devel zlib-devel libcurl-devel libzip-devel oniguruma-devel libicu-devel libsodium-devel \
+      libpng-devel libjpeg-turbo-devel freetype-devel gmp-devel readline-devel
   else
-    die "unsupported package manager: install the build dependencies listed in docs/modes/compatible.md"
+    die "no apt-get, dnf or yum found (PATH=$PATH): install the build dependencies listed in docs/modes/compatible.md, then run again with SKIP_DEPS=1"
   fi
 }
 

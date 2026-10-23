@@ -6,6 +6,9 @@
 
 ## [Unreleased]
 
+### Fixed — cài từ plugin aaPanel (2026-10-23)
+- Bấm "Cài đặt" trong plugin aaPanel bị dừng với lỗi `unsupported package manager`: tiến trình panel của aaPanel chạy với PATH tối thiểu nên script không thấy dnf/apt-get. Giờ các script tự đặt PATH chuẩn, plugin gọi `/bin/bash` và truyền PATH chuẩn, và hỗ trợ thêm `yum` (CentOS 7 / RHEL cũ). Test: backend plugin giờ chạy với PATH tối thiểu như của aaPanel.
+
 ### Added — DirectAdmin (2026-10-22)
 - `scripts/directadmin.sh`: QHturbo trên DirectAdmin (Apache / nginx_apache), từng domain một, tự rollback. User của domain có một pool PHP-FPM QHturbo chạy bằng chính user đó, chép từ pool của DirectAdmin (cùng open_basedir và giới hạn); việc chuyển là một khối có đánh dấu trong file httpd tuỳ chỉnh của domain (`.cust_httpd`) dùng `SetHandler`, đã thí nghiệm xác nhận thắng `AddHandler` của DirectAdmin dù đặt trước hay sau; cấu hình tuỳ chỉnh khác được giữ nguyên.
 - Plugin DirectAdmin (`plugins/directadmin/qhturbo.tar.gz`) và `scripts/panel-agent.sh`: trang plugin chạy bằng user của admin nên chỉ xếp yêu cầu vào hàng đợi; tác tử root (systemd path unit) chạy yêu cầu sau khi xác nhận người gửi là admin DirectAdmin và kiểm tra từng giá trị. Test: `tests/directadmin-sim.sh`, 32/32 trên DirectAdmin mô phỏng với Apache thật.

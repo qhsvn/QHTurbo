@@ -9,6 +9,11 @@ import time
 sys.path.insert(0, sys.argv[1])
 import qhturbo_main  # noqa: E402
 
+# aaPanel's panel process runs with a minimal PATH (only its own Python):
+# the plugin and the scripts must still find bash, git, apt-get/dnf, curl...
+os.environ['PATH'] = '/www/server/panel/pyenv/bin'
+
+
 P = qhturbo_main.qhturbo_main()
 fails = []
 
