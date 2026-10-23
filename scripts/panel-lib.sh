@@ -40,6 +40,14 @@ install_deps() {
     log "installing build dependencies (yum; needs EPEL)"
     yum install -y epel-release || true
     rpms+=(pkgconfig)
+    # CentOS 7's libzip (0.10) is too old for PHP and conflicts with Remi's
+    # libzip5 (1.5): when libzip5-devel is available, ask for it instead.
+    if yum -q list libzip5-devel > /dev/null 2>&1; then
+      local swapped=() r
+      for r in "${rpms[@]}"; do [[ "$r" == libzip-devel ]] && swapped+=(libzip5-devel) || swapped+=("$r"); done
+      rpms=("${swapped[@]}")
+      log "using libzip5-devel (Remi) instead of CentOS 7's libzip-devel 0.10"
+    fi
   else
     die "no apt-get, dnf or yum found (PATH=$PATH): install the build dependencies listed in docs/modes/compatible.md, then run again with SKIP_DEPS=1"
   fi
