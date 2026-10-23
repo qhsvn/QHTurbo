@@ -141,8 +141,9 @@ class qhturbo_main:
                 orig = '' if f[2] == '-' else '%s.%s' % (f[2][0], f[2][1:])
                 qht = '' if f[3] == '-' else '%s.%s' % (f[3][0], f[3][1:])
                 sites.append({'site': f[0], 'web': f[1], 'php': orig, 'qhturbo': qht})
-        rev = subprocess.Popen(['git', '-C', SRC, 'log', '-1', '--format=%h %cs'], stdout=subprocess.PIPE,
-                               stderr=subprocess.DEVNULL, env=_env()).communicate()[0].decode().strip()
+        # No "git -C" or "%cs": CentOS 7 has git 1.8.3.
+        rev = subprocess.Popen(['git', 'log', '-1', '--format=%h %cd', '--date=short'], stdout=subprocess.PIPE,
+                               stderr=subprocess.DEVNULL, cwd=SRC, env=_env()).communicate()[0].decode().strip()
         return _ok({'ready': True, 'src': SRC, 'revision': rev, 'versions': versions, 'sites': sites,
                     'job': self._job_state()})
 
@@ -214,8 +215,8 @@ class qhturbo_main:
         if os.path.exists(updater):
             cmd = ['/bin/bash', updater, SRC]
         else:  # copies older than update-src.sh
-            cmd = ['git', '-C', SRC, 'pull', '--ff-only']
-        p = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, env=_env())
+            cmd = ['git', 'pull', '--ff-only']
+        p = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, cwd=SRC, env=_env())
         out = ANSI_RE.sub('', p.communicate()[0].decode('utf-8', 'replace'))
         return _ok({'exit': p.returncode, 'output': out}, 'Updated' if p.returncode == 0 else 'Update failed')
 

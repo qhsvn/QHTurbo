@@ -15,7 +15,7 @@ source "$(dirname "$0")/lib.sh"
 
 variant="${1:-}"
 is_variant "$variant" || die "Usage: $0 <${VARIANTS[*]// /|}>"
-git -C "$PHP_SRC" rev-parse -q --verify "$PHP_COMMIT^{commit}" >/dev/null 2>&1 \
+git_in "$PHP_SRC" rev-parse -q --verify "$PHP_COMMIT^{commit}" >/dev/null 2>&1 \
   || die "$PHP_TAG not fetched; run QHT_PHP=$QHT_PHP scripts/bootstrap.sh first"
 warn_if_eol
 
@@ -23,7 +23,7 @@ wt="$WORKTREES/$variant$PROFILE_TAG"
 meta="$WORKTREES/.meta-$variant$PROFILE_TAG"
 want_stamp="$(source_stamp "$variant")"
 
-diff_hash() { git -C "$wt" diff HEAD --binary | sha256sum | cut -d' ' -f1; }
+diff_hash() { git_in "$wt" diff HEAD --binary | sha256sum | cut -d' ' -f1; }
 
 apply_patches() {
   uses_patches "$variant" || return 0
@@ -31,15 +31,32 @@ apply_patches() {
   while read -r p; do
     [[ -z "$p" ]] && continue
     log "Applying $(basename "$p")"
-    git -C "$wt" apply --index --whitespace=nowarn "$p" || die "Patch failed: $p"
+    git_in "$wt" apply --index --whitespace=nowarn "$p" || die "Patch failed: $p"
   done < <(patch_list)
+}
+
+# One source tree per variant: a git worktree, or with git < 2.7 (CentOS 7)
+# an export of the same verified commit in its own small repository, so
+# patches, "git diff" and resets work the same way.
+create_worktree() {
+  if git_has_worktree; then
+    log "Creating worktree $wt at $PHP_COMMIT"
+    git_in "$PHP_SRC" worktree add --detach "$wt" "$PHP_COMMIT" >/dev/null || die "worktree add failed"
+  else
+    log "Exporting $PHP_COMMIT to $wt (git $(git --version | awk '{print $3}') has no worktree)"
+    mkdir -p "$wt"
+    git_in "$PHP_SRC" archive --format=tar "$PHP_COMMIT" | tar -x -C "$wt" || die "export failed"
+    git_in "$wt" init -q
+    git_in "$wt" add -A
+    git_in "$wt" -c user.name=qhturbo -c user.email=qhturbo@localhost commit -q -m "php-src $PHP_TAG ($PHP_COMMIT)" \
+      || die "could not record the exported source"
+  fi
 }
 
 prepare_worktree() {
   mkdir -p "$WORKTREES"
   if [[ ! -d "$wt" ]]; then
-    log "Creating worktree $wt at $PHP_COMMIT"
-    git -C "$PHP_SRC" worktree add --detach "$wt" "$PHP_COMMIT" >/dev/null || die "worktree add failed"
+    create_worktree
   elif [[ "$(cat "$meta/stamp" 2>/dev/null)" == "$want_stamp" ]]; then
     log "Worktree up to date (incremental build)"
     return 1
@@ -48,7 +65,11 @@ prepare_worktree() {
 "Worktree $wt has edits that are not in patches/.
 Export them first (scripts/make-patch.sh $variant <name>) or back them up, then re-run."
     log "Patch series changed; resetting worktree to $PHP_COMMIT"
-    git -C "$wt" reset --hard -q "$PHP_COMMIT" || die "reset failed"
+    if [[ -f "$wt/.git" ]]; then  # a real git worktree
+      git_in "$wt" reset --hard -q "$PHP_COMMIT" || die "reset failed"
+    else                          # an exported copy (old git): start again
+      rm -rf "${wt:?}"; create_worktree
+    fi
   fi
   apply_patches
   mkdir -p "$meta"

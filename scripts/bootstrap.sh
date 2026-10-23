@@ -23,12 +23,12 @@ fetch_version() {
   tag="$(. "$env" && echo "$PHP_TAG")"
   # shellcheck source=/dev/null
   commit="$(. "$env" && echo "$PHP_COMMIT")"
-  if ! git -C "$PHP_SRC" rev-parse -q --verify "refs/tags/$tag" >/dev/null; then
+  if ! git_in "$PHP_SRC" rev-parse -q --verify "refs/tags/$tag" >/dev/null; then
     log "Fetching $tag"
-    git -C "$PHP_SRC" fetch -q --depth 1 origin "refs/tags/$tag:refs/tags/$tag" \
+    git_in "$PHP_SRC" fetch -q --depth 1 origin "refs/tags/$tag:refs/tags/$tag" \
       || die "fetch of $tag failed"
   fi
-  actual="$(git -C "$PHP_SRC" rev-parse "$tag^{commit}")"
+  actual="$(git_in "$PHP_SRC" rev-parse "$tag^{commit}")"
   [[ "$actual" == "$commit" ]] \
     || die "Tag $tag resolves to $actual, expected $commit (config/versions/$1.env). Stop and verify the upstream source."
   log "Verified $tag = $commit"

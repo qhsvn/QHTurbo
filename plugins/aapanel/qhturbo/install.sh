@@ -20,7 +20,7 @@ Install() {
     rm -rf "${SRC:?}.new"
     git clone -q --depth 1 "$REPO" "$SRC.new" || { echo "Could not download $REPO"; exit 1; }
     rm -rf "$SRC"; mv "$SRC.new" "$SRC"
-    echo "QHturbo scripts downloaded to $SRC: $(git -C "$SRC" log -1 --format='%h %cd' --date=short)"
+    echo "QHturbo scripts downloaded to $SRC: $(cd "$SRC" && git log -1 --format='%h %cd' --date=short)"
   fi
   echo 'Install OK'
 }

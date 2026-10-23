@@ -51,7 +51,7 @@ refresh() {
   chmod 644 "$STATE"/*.tsv.tmp
   mv "$STATE/versions.tsv.tmp" "$STATE/versions.tsv"
   mv "$STATE/sites.tsv.tmp" "$STATE/sites.tsv"
-  git -C "$QHT_ROOT" log -1 --format='%h %cd' --date=short > "$STATE/revision" 2>/dev/null || true
+  (cd "$QHT_ROOT" && git log -1 --format='%h %cd' --date=short) > "$STATE/revision" 2>/dev/null || true
   chmod 644 "$STATE/revision" 2>/dev/null || true
 }
 

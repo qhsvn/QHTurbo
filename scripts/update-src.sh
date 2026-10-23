@@ -9,6 +9,7 @@ SRC="${1:-${QHT_SRC:-/opt/qhturbo-src}}"
 REPO="${QHT_REPO:-https://github.com/qhsvn/QHTurbo.git}"
 BRANCH="${QHT_BRANCH:-main}"
 export HOME="${HOME:-/root}"   # git wants one; panel processes may not set it
+git_in() { local d="$1"; shift; (cd "$d" && git "$@"); }  # git -C needs git >= 1.8.5 (CentOS 7: 1.8.3)
 
 if ! command -v git > /dev/null 2>&1; then
   { command -v apt-get > /dev/null && apt-get install -y -q git; } \
@@ -18,15 +19,15 @@ if ! command -v git > /dev/null 2>&1; then
 fi
 git config --global --add safe.directory "$SRC" 2> /dev/null || true
 if [[ -d "$SRC/.git" ]]; then
-  before="$(git -C "$SRC" log -1 --format='%h %cd' --date=short 2> /dev/null || echo none)"
-  git -C "$SRC" remote set-url origin "$REPO"
-  git -C "$SRC" fetch -q --depth 1 origin "$BRANCH"
-  git -C "$SRC" checkout -q -f -B "$BRANCH" FETCH_HEAD
-  git -C "$SRC" clean -q -fd
+  before="$(git_in "$SRC" log -1 --format='%h %cd' --date=short 2> /dev/null || echo none)"
+  git_in "$SRC" remote set-url origin "$REPO"
+  git_in "$SRC" fetch -q --depth 1 origin "$BRANCH"
+  git_in "$SRC" checkout -q -f -B "$BRANCH" FETCH_HEAD
+  git_in "$SRC" clean -q -fd
 else
   before=none
   rm -rf "${SRC:?}"
   git clone -q --depth 1 --branch "$BRANCH" "$REPO" "$SRC"
 fi
-after="$(git -C "$SRC" log -1 --format='%h %cd' --date=short)"
+after="$(git_in "$SRC" log -1 --format='%h %cd' --date=short)"
 echo "QHturbo scripts in $SRC: $before -> $after"

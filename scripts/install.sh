@@ -104,7 +104,7 @@ else
   cp -r "$QHT_ROOT/runtime/bin" "$QHT_ROOT/runtime/src" "$QHT_ROOT/runtime/composer.json" "$root/share/qhturbo-runtime/"
 fi
 {
-  echo "qhturbo_rev=$(git -C "$QHT_ROOT" rev-parse --short HEAD 2>/dev/null || echo unknown)"
+  echo "qhturbo_rev=$(git_in "$QHT_ROOT" rev-parse --short HEAD 2>/dev/null || echo unknown)"
   cat "$BUILD_DIR/$variant$PROFILE_TAG/BUILD-INFO.txt" 2>/dev/null
 } > "$root/share/qhturbo/BUILD-INFO.txt"
 

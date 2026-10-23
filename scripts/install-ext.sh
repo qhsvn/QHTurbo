@@ -14,6 +14,7 @@ set -euo pipefail
 # make sure the system tools (dnf/apt-get, git, gcc, systemctl) are found.
 export PATH="/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin${PATH:+:$PATH}"
 
+git_in() { local d="$1"; shift; (cd "$d" && git "$@"); }  # git -C needs git >= 1.8.5
 log() { printf '\033[1;34m[qhturbo-ext]\033[0m %s\n' "$*" >&2; }
 die() { printf '\033[1;31m[qhturbo-ext] ERROR:\033[0m %s\n' "$*" >&2; exit 1; }
 
@@ -130,7 +131,7 @@ if [[ " ${BUNDLED//$'\n'/ } " == *" $ext "* ]]; then
   for d in "${QHT_LAB:-/opt/qhturbo-lab}"/worktrees/"$phpv"/*/; do
     [[ -d "$d/ext/$ext" ]] || continue
     grep -q "PHP_VERSION \"$phpver\"" "$d/main/php_version.h" 2> /dev/null || continue
-    git -C "$d" archive --format=tar HEAD "ext/$ext" 2> /dev/null | tar -x -C "$work" || continue
+    git_in "$d" archive --format=tar HEAD "ext/$ext" 2> /dev/null | tar -x -C "$work" || continue
     src="$work/ext/$ext"; log "building bundled ext/$ext from $d"; break
   done
   if [[ -z "$src" ]]; then

@@ -59,6 +59,11 @@ patch_list() {
 }
 
 # Hash identifying the exact source of a variant (upstream commit + patches).
+# "git -C dir" needs git >= 1.8.5; CentOS 7 ships 1.8.3.
+git_in() { local d="$1"; shift; (cd "$d" && git "$@"); }
+# "git worktree" needs git >= 2.5 (we use "list", 2.7+).
+git_has_worktree() { git worktree list > /dev/null 2>&1; }
+
 source_stamp() {
   local variant="$1"
   {
@@ -97,5 +102,5 @@ machine_info() {
   echo "- OS: $(. /etc/os-release && echo "$PRETTY_NAME"), kernel $(uname -r)"
   echo "- Compiler: $(${CC:-gcc} --version | head -1)"
   echo "- Upstream: $PHP_TAG ($PHP_COMMIT, support: $PHP_SUPPORT)"
-  echo "- QHturbo repo: $(git -C "$QHT_ROOT" rev-parse --short HEAD 2>/dev/null || echo uncommitted)"
+  echo "- QHturbo repo: $(git_in "$QHT_ROOT" rev-parse --short HEAD 2>/dev/null || echo uncommitted)"
 }
