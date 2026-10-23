@@ -210,8 +210,13 @@ class qhturbo_main:
         """git pull the QHturbo scripts."""
         if self._job_pid():
             return _err('Wait for the running task to finish')
-        p = subprocess.Popen(['git', '-C', SRC, 'pull', '--ff-only'], stdout=subprocess.PIPE, stderr=subprocess.STDOUT, env=_env())
-        out = p.communicate()[0].decode('utf-8', 'replace')
+        updater = SRC + '/scripts/update-src.sh'
+        if os.path.exists(updater):
+            cmd = ['/bin/bash', updater, SRC]
+        else:  # copies older than update-src.sh
+            cmd = ['git', '-C', SRC, 'pull', '--ff-only']
+        p = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, env=_env())
+        out = ANSI_RE.sub('', p.communicate()[0].decode('utf-8', 'replace'))
         return _ok({'exit': p.returncode, 'output': out}, 'Updated' if p.returncode == 0 else 'Update failed')
 
     def stop_job(self, get):

@@ -8,6 +8,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/). Every measuremen
 
 ### Fixed — installing from the aaPanel plugin (2026-10-23)
 - "Install" in the aaPanel plugin stopped with `unsupported package manager`: aaPanel's panel process runs with a minimal PATH, so the scripts did not find dnf/apt-get. The scripts now set a standard PATH themselves, the plugin calls `/bin/bash` and passes a standard PATH, and `yum` (CentOS 7 / older RHEL) is supported. Test: the plugin backend now runs with aaPanel's minimal PATH.
+- Re-importing the plugin did not update the scripts in `/opt/qhturbo-src`: `git pull --ff-only` stops on any local change, and aaPanel hides the install script's output. New `scripts/update-src.sh` (used by both plugins' install scripts and the "Update scripts" button) fetches and resets the managed copy to GitHub's `main`; the aaPanel install script logs to `/var/log/qhturbo/plugin-install.log`.
 
 ### Added — DirectAdmin (2026-10-22)
 - `scripts/directadmin.sh`: QHturbo on DirectAdmin (Apache / nginx_apache), one domain at a time with automatic rollback. The domain's user gets a QHturbo PHP-FPM pool that runs as that user, copied from DirectAdmin's pool (same open_basedir and limits); the switch is a marked block in the domain's custom httpd file (`.cust_httpd`) using `SetHandler`, which an experiment confirmed wins over DirectAdmin's `AddHandler` in either order; other custom code is kept.

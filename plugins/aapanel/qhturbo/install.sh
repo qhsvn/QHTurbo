@@ -7,17 +7,21 @@ SRC="${QHT_SRC:-/opt/qhturbo-src}"
 REPO=https://github.com/qhsvn/QHTurbo.git
 
 Install() {
-  if ! command -v git > /dev/null 2>&1; then
-    { command -v apt-get > /dev/null && apt-get install -y -q git; } \
-      || { command -v dnf > /dev/null && dnf install -y -q git; } \
-      || yum install -y -q git
-  fi
-  if [ -d "$SRC/.git" ]; then
-    git -C "$SRC" pull -q --ff-only || echo "Could not update $SRC (local changes?); keeping it as it is"
-  else
-    git clone -q --depth 1 "$REPO" "$SRC" || { echo "Could not download $REPO"; exit 1; }
-  fi
   mkdir -p /var/log/qhturbo
+  # aaPanel hides this script's output: keep a log for troubleshooting.
+  exec > >(tee -a /var/log/qhturbo/plugin-install.log) 2>&1
+  echo "== $(date '+%Y-%m-%d %H:%M:%S') QHturbo aaPanel plugin install"
+  if [ -x "$SRC/scripts/update-src.sh" ]; then
+    "$SRC/scripts/update-src.sh" "$SRC" || { echo "Could not update $SRC"; exit 1; }
+  else
+    # First install (or a copy older than update-src.sh): fetch it directly.
+    command -v git > /dev/null 2>&1 || { command -v apt-get > /dev/null && apt-get install -y -q git; } \
+      || { command -v dnf > /dev/null && dnf install -y -q git; } || yum install -y -q git
+    rm -rf "${SRC:?}.new"
+    git clone -q --depth 1 "$REPO" "$SRC.new" || { echo "Could not download $REPO"; exit 1; }
+    rm -rf "$SRC"; mv "$SRC.new" "$SRC"
+    echo "QHturbo scripts downloaded to $SRC: $(git -C "$SRC" log -1 --format='%h %cd' --date=short)"
+  fi
   echo 'Install OK'
 }
 

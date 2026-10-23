@@ -22,11 +22,14 @@ if [ "$(id -u)" != 0 ]; then
   echo "  git clone $REPO $SRC && $SRC/scripts/panel-agent.sh setup directadmin"
   exit 0
 fi
-if [ -d "$SRC/.git" ]; then
-  git -C "$SRC" pull -q --ff-only || echo "Could not update $SRC; keeping it as it is"
+mkdir -p /var/log/qhturbo
+if [ -x "$SRC/scripts/update-src.sh" ]; then
+  "$SRC/scripts/update-src.sh" "$SRC" || { echo "Could not update $SRC"; exit 1; }
 else
-  command -v git > /dev/null 2>&1 || { command -v dnf > /dev/null && dnf install -y -q git; } || { command -v apt-get > /dev/null && apt-get install -y -q git; }
-  git clone -q --depth 1 "$REPO" "$SRC" || { echo "Could not download $REPO"; exit 1; }
+  command -v git > /dev/null 2>&1 || { command -v dnf > /dev/null && dnf install -y -q git; } || { command -v apt-get > /dev/null && apt-get install -y -q git; } || yum install -y -q git
+  rm -rf "${SRC:?}.new"
+  git clone -q --depth 1 "$REPO" "$SRC.new" || { echo "Could not download $REPO"; exit 1; }
+  rm -rf "$SRC"; mv "$SRC.new" "$SRC"
 fi
 "$SRC/scripts/panel-agent.sh" setup directadmin
 echo "QHturbo PHP plugin installed. Open it from the admin menu (Extra Features / Plugins)."
